@@ -9,9 +9,10 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit",
-    "test": "echo \"Tests pendientes\""
+   "start": "node dist/server.js",
+   "typecheck": "tsc --noEmit",
+  "test": "vitest run",
+   "test:watch": "vitest"
   },
   "repository": {
     "type": "git",
@@ -46,7 +47,10 @@
     "@types/express": "^5.0.6",
     "@types/multer": "^2.3.0",
     "@types/node": "^26.6.4",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.3.1",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
   }
 }
