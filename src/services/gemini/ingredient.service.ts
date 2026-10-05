@@ -52,16 +52,24 @@ export async function analyzeIngredientsFromImage({
       );
     }
 
-    const parsedResponse: unknown = JSON.parse(
-      interaction.output_text,
-    );
+    let parsedResponse: unknown;
+
+    try {
+      parsedResponse = JSON.parse(interaction.output_text);
+    } catch {
+      throw new AppError(
+        'Gemini devolvió una respuesta que no es JSON válido.',
+        502,
+        'INVALID_GEMINI_JSON',
+      );
+    }
 
     const validation =
       ingredientAnalysisSchema.safeParse(parsedResponse);
 
     if (!validation.success) {
       console.error(
-        'Respuesta inválida de Gemini:',
+        '❌ Respuesta inválida de Gemini:',
         validation.error,
       );
 
@@ -74,10 +82,60 @@ export async function analyzeIngredientsFromImage({
 
     return validation.data;
   } catch (error) {
+    /*
+     * Si el error ya fue creado por nuestra aplicación,
+     * simplemente lo propagamos.
+     */
     if (error instanceof AppError) {
       throw error;
     }
 
+    /*
+     * Los errores del SDK de Gemini pueden contener
+     * status o statusCode.
+     */
+    const geminiError = error as {
+      status?: number;
+      statusCode?: number;
+    };
+
+    const status =
+      geminiError.status ??
+      geminiError.statusCode;
+
+    /*
+     * Límite de solicitudes / cuota agotada.
+     */
+    if (status === 429) {
+      console.warn(
+        '⚠️ Gemini alcanzó el límite de solicitudes.',
+      );
+
+      throw new AppError(
+        'Se alcanzó temporalmente el límite de solicitudes de análisis. Intenta nuevamente más tarde.',
+        429,
+        'GEMINI_RATE_LIMIT',
+      );
+    }
+
+    /*
+     * Gemini temporalmente saturado o no disponible.
+     */
+    if (status === 503) {
+      console.warn(
+        '⚠️ Gemini está temporalmente no disponible.',
+      );
+
+      throw new AppError(
+        'El servicio de análisis está temporalmente ocupado. Intenta nuevamente más tarde.',
+        503,
+        'GEMINI_UNAVAILABLE',
+      );
+    }
+
+    /*
+     * Cualquier otro error inesperado.
+     */
     console.error(
       '❌ Error analizando imagen con Gemini:',
       error,

@@ -29,6 +29,7 @@ export type Ingredient = z.infer<typeof ingredientSchema>;
 export type IngredientAnalysis = z.infer<
   typeof ingredientAnalysisSchema
 >;
+
 export const ingredientAnalysisJsonSchema = {
   type: 'object',
   properties: {
