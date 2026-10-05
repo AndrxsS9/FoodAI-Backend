@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import ingredientsRoutes from './routes/ingredients.routes';
 
 import healthRoutes from './routes/health.routes';
 
@@ -26,6 +27,11 @@ app.use(
 
 // Routes
 app.use('/api/health', healthRoutes);
+
+app.use(
+  '/api/ingredients',
+  ingredientsRoutes,
+);
 
 // 404
 app.use(notFoundMiddleware);
