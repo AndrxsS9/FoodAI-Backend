@@ -1,9 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import ingredientsRoutes from './routes/ingredients.routes';
 
 import healthRoutes from './routes/health.routes';
+import ingredientsRoutes from './routes/ingredients.routes';
+import recipesRoutes from './routes/recipes.routes';
 
 import { notFoundMiddleware } from './middlewares/notFound.middleware';
 import { errorMiddleware } from './middlewares/error.middleware';
@@ -25,18 +26,30 @@ app.use(
   }),
 );
 
-// Routes
-app.use('/api/health', healthRoutes);
+/*
+ * Rutas
+ */
+app.use(
+  '/api/health',
+  healthRoutes,
+);
 
 app.use(
   '/api/ingredients',
   ingredientsRoutes,
 );
 
-// 404
+app.use(
+  '/api/recipes',
+  recipesRoutes,
+);
+
+/*
+ * Estos dos middlewares deben ir
+ * DESPUÉS de todas las rutas.
+ */
 app.use(notFoundMiddleware);
 
-// Global error handler
 app.use(errorMiddleware);
 
 export default app;
