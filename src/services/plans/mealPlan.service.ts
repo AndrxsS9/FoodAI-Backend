@@ -188,6 +188,37 @@ function selectBestCombination(
       ? withinBudget
       : combinations;
 
+  if (withinBudget.length === 0) {
+    candidates.sort((a, b) => {
+      if (
+        a.totalEstimatedMissingCost !==
+        b.totalEstimatedMissingCost
+      ) {
+        return (
+          a.totalEstimatedMissingCost -
+          b.totalEstimatedMissingCost
+        );
+      }
+
+      if (
+        b.totalConvenience !==
+        a.totalConvenience
+      ) {
+        return (
+          b.totalConvenience -
+          a.totalConvenience
+        );
+      }
+
+      return (
+        a.totalMinutes -
+        b.totalMinutes
+      );
+    });
+
+    return candidates[0];
+  }
+
   candidates.sort((a, b) => {
     /*
      * 1. Mayor conveniencia acumulada.
