@@ -342,6 +342,137 @@ describe('POST /api/meal-plans/generate', () => {
     ).toBe(17000);
   });
 
+  it('debe elegir la combinación de menor costo cuando ninguna cabe en el presupuesto', async () => {
+    mockedBuildRecipeRecommendations.mockResolvedValue({
+      recipes: [
+        {
+          name: 'Receta con ajo',
+          description: 'Primera receta.',
+          totalMinutes: 10,
+          ingredients: [
+            {
+              name: 'ajo',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            {
+              name: 'ajo',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          estimatedMissingCost: 1000,
+          budgetRemaining: -1000,
+          withinBudget: false,
+          convenience: 0,
+          reason: 'Requiere una compra.',
+        },
+        {
+          name: 'Receta con tomate',
+          description: 'Segunda receta.',
+          totalMinutes: 10,
+          ingredients: [
+            {
+              name: 'tomate',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            {
+              name: 'tomate',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          estimatedMissingCost: 1500,
+          budgetRemaining: -1500,
+          withinBudget: false,
+          convenience: 50,
+          reason: 'Requiere una compra.',
+        },
+        {
+          name: 'Receta con papa',
+          description: 'Tercera receta.',
+          totalMinutes: 10,
+          ingredients: [
+            {
+              name: 'papa',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            {
+              name: 'papa',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          estimatedMissingCost: 2500,
+          budgetRemaining: -2500,
+          withinBudget: false,
+          convenience: 50,
+          reason: 'Requiere una compra.',
+        },
+        {
+          name: 'Receta con carne',
+          description: 'Cuarta receta.',
+          totalMinutes: 10,
+          ingredients: [
+            {
+              name: 'carne',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            {
+              name: 'carne',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          estimatedMissingCost: 12000,
+          budgetRemaining: -12000,
+          withinBudget: false,
+          convenience: 100,
+          reason: 'Requiere una compra.',
+        },
+      ],
+    });
+
+    const response = await request(app)
+      .post('/api/meal-plans/generate')
+      .send({
+        ...validRequest,
+        budget: 0,
+      });
+
+    expect(response.status).toBe(200);
+    expect(
+      response.body.data.totalEstimatedMissingCost,
+    ).toBe(5000);
+    expect(response.body.data.budgetRemaining).toBe(-5000);
+    expect(response.body.data.withinBudget).toBe(false);
+    expect(
+      response.body.data.days.map(
+        (day: { recipe: { name: string } }) =>
+          day.recipe.name,
+      ),
+    ).not.toContain('Receta con carne');
+  });
+
   it('debe fallar si no existen suficientes recetas para tres días', async () => {
     mockedBuildRecipeRecommendations.mockResolvedValue({
       recipes: [
