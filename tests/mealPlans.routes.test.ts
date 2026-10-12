@@ -460,11 +460,306 @@ describe('POST /api/meal-plans/generate', () => {
       });
 
     expect(response.status).toBe(200);
+
     expect(
       response.body.data.totalEstimatedMissingCost,
     ).toBe(5000);
-    expect(response.body.data.budgetRemaining).toBe(-5000);
-    expect(response.body.data.withinBudget).toBe(false);
+
+    expect(
+      response.body.data.budgetRemaining,
+    ).toBe(-5000);
+
+    expect(
+      response.body.data.withinBudget,
+    ).toBe(false);
+
+    expect(
+      response.body.data.days.map(
+        (day: { recipe: { name: string } }) =>
+          day.recipe.name,
+      ),
+    ).not.toContain('Receta con carne');
+  });
+
+  it('debe priorizar mayor conveniencia cuando varias combinaciones caben en el presupuesto', async () => {
+    mockedBuildRecipeRecommendations.mockResolvedValue({
+      recipes: [
+        {
+          name: 'Receta con ajo',
+          description: 'Receta económica.',
+          totalMinutes: 20,
+          ingredients: [
+            {
+              name: 'ajo',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            {
+              name: 'ajo',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          estimatedMissingCost: 1000,
+          budgetRemaining: 19000,
+          withinBudget: true,
+          convenience: 90,
+          reason: 'Buena conveniencia.',
+        },
+        {
+          name: 'Receta con tomate',
+          description: 'Receta económica.',
+          totalMinutes: 20,
+          ingredients: [
+            {
+              name: 'tomate',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            {
+              name: 'tomate',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          estimatedMissingCost: 1500,
+          budgetRemaining: 18500,
+          withinBudget: true,
+          convenience: 80,
+          reason: 'Buena conveniencia.',
+        },
+        {
+          name: 'Receta con papa',
+          description: 'Receta económica.',
+          totalMinutes: 20,
+          ingredients: [
+            {
+              name: 'papa',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            {
+              name: 'papa',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          estimatedMissingCost: 2500,
+          budgetRemaining: 17500,
+          withinBudget: true,
+          convenience: 70,
+          reason: 'Conveniencia media.',
+        },
+        {
+          name: 'Receta con carne',
+          description: 'Receta más costosa.',
+          totalMinutes: 20,
+          ingredients: [
+            {
+              name: 'carne',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            {
+              name: 'carne',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          estimatedMissingCost: 12000,
+          budgetRemaining: 8000,
+          withinBudget: true,
+          convenience: 95,
+          reason: 'Alta conveniencia.',
+        },
+      ],
+    });
+
+    const response = await request(app)
+      .post('/api/meal-plans/generate')
+      .send(validRequest);
+
+    expect(response.status).toBe(200);
+
+    expect(
+      response.body.data.withinBudget,
+    ).toBe(true);
+
+    expect(
+      response.body.data.days.map(
+        (day: { recipe: { name: string } }) =>
+          day.recipe.name,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        'Receta con ajo',
+        'Receta con tomate',
+        'Receta con carne',
+      ]),
+    );
+
+    expect(
+      response.body.data.totalEstimatedMissingCost,
+    ).toBe(14500);
+
+    expect(
+      response.body.data.budgetRemaining,
+    ).toBe(5500);
+  });
+
+  it('debe usar menor costo como desempate cuando la conveniencia es igual', async () => {
+    mockedBuildRecipeRecommendations.mockResolvedValue({
+      recipes: [
+        {
+          name: 'Receta con ajo',
+          description: 'Primera receta.',
+          totalMinutes: 20,
+          ingredients: [
+            {
+              name: 'ajo',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            {
+              name: 'ajo',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          estimatedMissingCost: 1000,
+          budgetRemaining: 19000,
+          withinBudget: true,
+          convenience: 80,
+          reason: 'Conveniencia similar.',
+        },
+        {
+          name: 'Receta con tomate',
+          description: 'Segunda receta.',
+          totalMinutes: 20,
+          ingredients: [
+            {
+              name: 'tomate',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            {
+              name: 'tomate',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          estimatedMissingCost: 1500,
+          budgetRemaining: 18500,
+          withinBudget: true,
+          convenience: 80,
+          reason: 'Conveniencia similar.',
+        },
+        {
+          name: 'Receta con papa',
+          description: 'Tercera receta.',
+          totalMinutes: 20,
+          ingredients: [
+            {
+              name: 'papa',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            {
+              name: 'papa',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          estimatedMissingCost: 2500,
+          budgetRemaining: 17500,
+          withinBudget: true,
+          convenience: 80,
+          reason: 'Conveniencia similar.',
+        },
+        {
+          name: 'Receta con carne',
+          description: 'Cuarta receta.',
+          totalMinutes: 20,
+          ingredients: [
+            {
+              name: 'carne',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            {
+              name: 'carne',
+              quantity: 1,
+              unit: 'unidad',
+            },
+          ],
+          estimatedMissingCost: 12000,
+          budgetRemaining: 8000,
+          withinBudget: true,
+          convenience: 80,
+          reason: 'Conveniencia similar.',
+        },
+      ],
+    });
+
+    const response = await request(app)
+      .post('/api/meal-plans/generate')
+      .send(validRequest);
+
+    expect(response.status).toBe(200);
+
+    expect(
+      response.body.data.totalEstimatedMissingCost,
+    ).toBe(5000);
+
+    expect(
+      response.body.data.budgetRemaining,
+    ).toBe(15000);
+
+    expect(
+      response.body.data.days.map(
+        (day: { recipe: { name: string } }) =>
+          day.recipe.name,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        'Receta con ajo',
+        'Receta con tomate',
+        'Receta con papa',
+      ]),
+    );
+
     expect(
       response.body.data.days.map(
         (day: { recipe: { name: string } }) =>
