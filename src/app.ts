@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import healthRoutes from './routes/health.routes';
 import ingredientsRoutes from './routes/ingredients.routes';
 import recipesRoutes from './routes/recipes.routes';
+import mealPlansRoutes from './routes/mealPlans.routes';
 
 import { notFoundMiddleware } from './middlewares/notFound.middleware';
 import { errorMiddleware } from './middlewares/error.middleware';
@@ -42,6 +43,11 @@ app.use(
 app.use(
   '/api/recipes',
   recipesRoutes,
+);
+
+app.use(
+  '/api/meal-plans',
+  mealPlansRoutes,
 );
 
 /*
