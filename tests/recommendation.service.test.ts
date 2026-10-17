@@ -503,4 +503,317 @@ describe('recommendation.service - buildRecipeRecommendations', () => {
     expect(typeof recipe.convenience).toBe('number');
     expect(typeof recipe.reason).toBe('string');
   });
+
+  describe('Integración con matcher mejorado (aliases, plurales y prevención de falsos positivos)', () => {
+    it('15. Alias simple integrado en recomendaciones (despensa papa / receta patata)', async () => {
+      const pantry = [buildPantryIngredient('papa')];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Puré de patatas', [
+            { name: 'patata', quantity: 3, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes).toHaveLength(1);
+      const [rec] = response.recipes;
+      expect(rec.availableIngredients).toHaveLength(1);
+      expect(rec.availableIngredients[0].name).toBe('patata');
+      expect(rec.missingIngredients).toHaveLength(0);
+      expect(rec.estimatedMissingCost).toBe(0);
+    });
+
+    it('16. Alias en dirección inversa (despensa palta / receta aguacate)', async () => {
+      const pantry = [buildPantryIngredient('palta')];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Guacamole', [
+            { name: 'aguacate', quantity: 2, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      const [rec] = response.recipes;
+      expect(rec.availableIngredients).toHaveLength(1);
+      expect(rec.availableIngredients[0].name).toBe('aguacate');
+      expect(rec.missingIngredients).toHaveLength(0);
+      expect(rec.estimatedMissingCost).toBe(0);
+    });
+
+    it('17. Singular/plural simple (despensa tomates / receta tomate)', async () => {
+      const pantry = [buildPantryIngredient('tomates')];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Ensalada', [
+            { name: 'tomate', quantity: 2, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      const [rec] = response.recipes;
+      expect(rec.availableIngredients).toHaveLength(1);
+      expect(rec.availableIngredients[0].name).toBe('tomate');
+      expect(rec.missingIngredients).toHaveLength(0);
+      expect(rec.estimatedMissingCost).toBe(0);
+    });
+
+    it('18. Plural en la receta y singular en despensa (despensa huevo / receta huevos)', async () => {
+      const pantry = [buildPantryIngredient('huevo')];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Tortilla', [
+            { name: 'huevos', quantity: 3, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      const [rec] = response.recipes;
+      expect(rec.availableIngredients).toHaveLength(1);
+      expect(rec.availableIngredients[0].name).toBe('huevos');
+      expect(rec.missingIngredients).toHaveLength(0);
+      expect(rec.estimatedMissingCost).toBe(0);
+    });
+
+    it('19. Singularización + alias (despensa patatas / receta papa)', async () => {
+      const pantry = [buildPantryIngredient('patatas')];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Papas al horno', [
+            { name: 'papa', quantity: 4, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      const [rec] = response.recipes;
+      expect(rec.availableIngredients).toHaveLength(1);
+      expect(rec.availableIngredients[0].name).toBe('papa');
+      expect(rec.missingIngredients).toHaveLength(0);
+      expect(rec.estimatedMissingCost).toBe(0);
+    });
+
+    it('20. Frase plural + alias (despensa cebollas de rama / receta cebolla larga)', async () => {
+      const pantry = [buildPantryIngredient('cebollas de rama')];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Guiso casero', [
+            { name: 'cebolla larga', quantity: 1, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      const [rec] = response.recipes;
+      expect(rec.availableIngredients).toHaveLength(1);
+      expect(rec.availableIngredients[0].name).toBe('cebolla larga');
+      expect(rec.missingIngredients).toHaveLength(0);
+      expect(rec.estimatedMissingCost).toBe(0);
+    });
+
+    it('21. Ingrediente faltante realmente distinto (despensa papa / receta aguacate)', async () => {
+      const pantry = [buildPantryIngredient('papa')];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Ensalada verde', [
+            { name: 'aguacate', quantity: 1, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      const [rec] = response.recipes;
+      expect(rec.availableIngredients).toHaveLength(0);
+      expect(rec.missingIngredients).toHaveLength(1);
+      expect(rec.missingIngredients[0].name).toBe('aguacate');
+    });
+
+    it('22. Protección contra falso positivo (despensa salsa / receta sal)', async () => {
+      const pantry = [buildPantryIngredient('salsa')];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Receta simple', [
+            { name: 'sal', quantity: null, unit: 'desconocida' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      const [rec] = response.recipes;
+      expect(rec.availableIngredients).toHaveLength(0);
+      expect(rec.missingIngredients).toHaveLength(1);
+      expect(rec.missingIngredients[0].name).toBe('sal');
+    });
+
+    it('23. Otra protección contra falso positivo (despensa panela / receta pan)', async () => {
+      const pantry = [buildPantryIngredient('panela')];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Tostadas', [
+            { name: 'pan', quantity: 2, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      const [rec] = response.recipes;
+      expect(rec.availableIngredients).toHaveLength(0);
+      expect(rec.missingIngredients).toHaveLength(1);
+      expect(rec.missingIngredients[0].name).toBe('pan');
+    });
+
+    it('24. Recomendación con mezcla completa: exacto, alias, plural, plural + alias y faltante', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz'),
+        buildPantryIngredient('tomates'),
+        buildPantryIngredient('maíz'),
+        buildPantryIngredient('patatas'),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Plato Mixto Completo', [
+            { name: 'arroz', quantity: 200, unit: 'g' }, // exacto
+            { name: 'tomate', quantity: 2, unit: 'unidad' }, // singular/plural
+            { name: 'choclo', quantity: 1, unit: 'unidad' }, // alias (maíz)
+            { name: 'papa', quantity: 2, unit: 'unidad' }, // plural + alias (patatas)
+            { name: 'carne', quantity: 300, unit: 'g' }, // faltante (costo 12000)
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      const [rec] = response.recipes;
+      expect(rec.availableIngredients.map((i) => i.name)).toEqual([
+        'arroz',
+        'tomate',
+        'choclo',
+        'papa',
+      ]);
+      expect(rec.missingIngredients.map((i) => i.name)).toEqual(['carne']);
+      expect(rec.estimatedMissingCost).toBe(12000);
+      expect(rec.withinBudget).toBe(true);
+      expect(rec.budgetRemaining).toBe(8000);
+      // pantryScore = 4/5 = 0.8, budgetScore = 1 - 12000/20000 = 0.4 -> raw = 0.8*0.7 + 0.4*0.3 = 0.68 -> 68
+      expect(rec.convenience).toBe(68);
+    });
+
+    it('25. Equivalencia reconocida como disponible no genera costo faltante (papa / patata)', async () => {
+      const pantry = [buildPantryIngredient('patata')];
+      const request = buildRequest(pantry, { budget: 10000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Papas cocidas', [
+            { name: 'papa', quantity: 3, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      const [rec] = response.recipes;
+      expect(rec.estimatedMissingCost).toBe(0);
+      expect(rec.budgetRemaining).toBe(10000);
+      expect(rec.withinBudget).toBe(true);
+    });
+
+    it('26. Falsos positivos rechazados generan costo faltante de compra (salsa vs sal)', async () => {
+      const pantry = [buildPantryIngredient('salsa')];
+      const request = buildRequest(pantry, { budget: 10000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Receta con sal', [
+            { name: 'sal', quantity: 10, unit: 'g' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      const [rec] = response.recipes;
+      expect(rec.missingIngredients).toHaveLength(1);
+      expect(rec.missingIngredients[0].name).toBe('sal');
+      // Sal en catálogo de precios cuesta 1500
+      expect(rec.estimatedMissingCost).toBe(1500);
+      expect(rec.budgetRemaining).toBe(8500);
+    });
+
+    it('27. Confirmar que el input no se muta en escenarios con aliases y plurales', async () => {
+      const pantry = [
+        buildPantryIngredient('patatas', { quantity: 2, unit: 'unidad' }),
+        buildPantryIngredient('tomates', { quantity: 4, unit: 'unidad' }),
+      ];
+      const request = buildRequest(pantry, {
+        budget: 15000,
+        servings: 3,
+        maxMinutes: 45,
+      });
+      const copy = structuredClone(request);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Sopa', [
+            { name: 'papa', quantity: 2, unit: 'unidad' },
+            { name: 'tomate', quantity: 2, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      await buildRecipeRecommendations(request);
+
+      expect(request).toEqual(copy);
+    });
+
+    it('28. Confirmar que generateRecipeRecommendations sigue siendo llamado exactamente una vez', async () => {
+      const pantry = [buildPantryIngredient('paltas')];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Ensalada', [
+            { name: 'aguacate', quantity: 1, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      await buildRecipeRecommendations(request);
+
+      expect(mockedGenerateRecipeRecommendations).toHaveBeenCalledTimes(1);
+      expect(mockedGenerateRecipeRecommendations).toHaveBeenCalledWith(request);
+    });
+  });
 });

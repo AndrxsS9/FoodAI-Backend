@@ -2,6 +2,8 @@ import type {
   RecipeIngredient,
 } from '../../schemas/recipe.schema';
 
+import { prepareIngredientName } from '../../utils/ingredientIdentity';
+
 interface PriceRule {
   aliases: string[];
   estimatedPurchasePrice: number;
@@ -106,29 +108,21 @@ const ingredientPriceCatalog: PriceRule[] = [
 
 const UNKNOWN_INGREDIENT_ESTIMATED_COST = 5000;
 
-function normalizeIngredientName(
-  name: string,
-): string {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\p{L}\p{N}\s]/gu, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 function findPriceRule(
   ingredientName: string,
 ): PriceRule | undefined {
-  const normalizedName =
-    normalizeIngredientName(ingredientName);
+  const preparedName =
+    prepareIngredientName(ingredientName);
+
+  if (!preparedName) {
+    return undefined;
+  }
 
   return ingredientPriceCatalog.find((rule) =>
     rule.aliases.some(
       (alias) =>
-        normalizeIngredientName(alias) ===
-        normalizedName,
+        prepareIngredientName(alias) ===
+        preparedName,
     ),
   );
 }

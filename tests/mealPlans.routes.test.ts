@@ -815,4 +815,286 @@ describe('POST /api/meal-plans/generate', () => {
       },
     });
   });
+
+  it('debe deduplicar costo de compra cuando una receta requiere "papa" y otra "patata"', async () => {
+    mockedBuildRecipeRecommendations.mockResolvedValue({
+      recipes: [
+        {
+          name: 'Puré de papa',
+          description: 'Receta 1.',
+          totalMinutes: 20,
+          ingredients: [
+            { name: 'papa', quantity: 2, unit: 'unidad' },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            { name: 'papa', quantity: 2, unit: 'unidad' },
+          ],
+          estimatedMissingCost: 2500,
+          budgetRemaining: 17500,
+          withinBudget: true,
+          convenience: 85,
+          reason: 'Buena opción.',
+        },
+        {
+          name: 'Tortilla con patata',
+          description: 'Receta 2.',
+          totalMinutes: 25,
+          ingredients: [
+            { name: 'patata', quantity: 2, unit: 'unidad' },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            { name: 'patata', quantity: 2, unit: 'unidad' },
+          ],
+          estimatedMissingCost: 2500,
+          budgetRemaining: 17500,
+          withinBudget: true,
+          convenience: 85,
+          reason: 'Buena opción.',
+        },
+        {
+          name: 'Arroz blanco',
+          description: 'Receta 3.',
+          totalMinutes: 20,
+          ingredients: [
+            { name: 'arroz', quantity: 200, unit: 'g' },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            { name: 'arroz', quantity: 200, unit: 'g' },
+          ],
+          estimatedMissingCost: 3500,
+          budgetRemaining: 16500,
+          withinBudget: true,
+          convenience: 85,
+          reason: 'Buena opción.',
+        },
+      ],
+    });
+
+    const response = await request(app)
+      .post('/api/meal-plans/generate')
+      .send(validRequest);
+
+    expect(response.status).toBe(200);
+    // papa (2500) y patata (alias de papa) se deduplican a una sola compra: 2500 + arroz (3500) = 6000
+    expect(response.body.data.totalEstimatedMissingCost).toBe(6000);
+    expect(response.body.data.budgetRemaining).toBe(14000);
+    expect(response.body.data.withinBudget).toBe(true);
+  });
+
+  it('debe deduplicar costo de compra cuando una receta requiere "papa" y otra "patatas"', async () => {
+    mockedBuildRecipeRecommendations.mockResolvedValue({
+      recipes: [
+        {
+          name: 'Puré de papa',
+          description: 'Receta 1.',
+          totalMinutes: 20,
+          ingredients: [
+            { name: 'papa', quantity: 2, unit: 'unidad' },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            { name: 'papa', quantity: 2, unit: 'unidad' },
+          ],
+          estimatedMissingCost: 2500,
+          budgetRemaining: 17500,
+          withinBudget: true,
+          convenience: 85,
+          reason: 'Buena opción.',
+        },
+        {
+          name: 'Papas al horno',
+          description: 'Receta 2.',
+          totalMinutes: 25,
+          ingredients: [
+            { name: 'patatas', quantity: 3, unit: 'unidad' },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            { name: 'patatas', quantity: 3, unit: 'unidad' },
+          ],
+          estimatedMissingCost: 2500,
+          budgetRemaining: 17500,
+          withinBudget: true,
+          convenience: 85,
+          reason: 'Buena opción.',
+        },
+        {
+          name: 'Arroz blanco',
+          description: 'Receta 3.',
+          totalMinutes: 20,
+          ingredients: [
+            { name: 'arroz', quantity: 200, unit: 'g' },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            { name: 'arroz', quantity: 200, unit: 'g' },
+          ],
+          estimatedMissingCost: 3500,
+          budgetRemaining: 16500,
+          withinBudget: true,
+          convenience: 85,
+          reason: 'Buena opción.',
+        },
+      ],
+    });
+
+    const response = await request(app)
+      .post('/api/meal-plans/generate')
+      .send(validRequest);
+
+    expect(response.status).toBe(200);
+    // papa (2500) y patatas (plural + alias de papa) se deduplican: 2500 + arroz (3500) = 6000
+    expect(response.body.data.totalEstimatedMissingCost).toBe(6000);
+    expect(response.body.data.budgetRemaining).toBe(14000);
+  });
+
+  it('debe deduplicar costo de compra con frases/aliases: "cebolla larga" y "cebollas de rama"', async () => {
+    mockedBuildRecipeRecommendations.mockResolvedValue({
+      recipes: [
+        {
+          name: 'Sopa con cebolla larga',
+          description: 'Receta 1.',
+          totalMinutes: 20,
+          ingredients: [
+            { name: 'cebolla larga', quantity: 1, unit: 'unidad' },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            { name: 'cebolla larga', quantity: 1, unit: 'unidad' },
+          ],
+          estimatedMissingCost: 2000,
+          budgetRemaining: 18000,
+          withinBudget: true,
+          convenience: 85,
+          reason: 'Buena opción.',
+        },
+        {
+          name: 'Guiso con cebollas de rama',
+          description: 'Receta 2.',
+          totalMinutes: 25,
+          ingredients: [
+            { name: 'cebollas de rama', quantity: 2, unit: 'unidad' },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            { name: 'cebollas de rama', quantity: 2, unit: 'unidad' },
+          ],
+          estimatedMissingCost: 2000,
+          budgetRemaining: 18000,
+          withinBudget: true,
+          convenience: 85,
+          reason: 'Buena opción.',
+        },
+        {
+          name: 'Huevos revueltos',
+          description: 'Receta 3.',
+          totalMinutes: 10,
+          ingredients: [
+            { name: 'huevo', quantity: 2, unit: 'unidad' },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            { name: 'huevo', quantity: 2, unit: 'unidad' },
+          ],
+          estimatedMissingCost: 800,
+          budgetRemaining: 19200,
+          withinBudget: true,
+          convenience: 85,
+          reason: 'Buena opción.',
+        },
+      ],
+    });
+
+    const response = await request(app)
+      .post('/api/meal-plans/generate')
+      .send(validRequest);
+
+    expect(response.status).toBe(200);
+    // cebolla larga (2000) y cebollas de rama (2000) se deduplican: 2000 + huevo (800) = 2800
+    expect(response.body.data.totalEstimatedMissingCost).toBe(2800);
+    expect(response.body.data.budgetRemaining).toBe(17200);
+  });
+
+  it('no debe mutar el objeto de solicitud ni la despensa enviada', async () => {
+    mockedBuildRecipeRecommendations.mockResolvedValue({
+      recipes: [
+        {
+          name: 'Receta 1',
+          description: 'Desc 1',
+          totalMinutes: 20,
+          ingredients: [
+            { name: 'papa', quantity: 2, unit: 'unidad' },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            { name: 'patatas', quantity: 2, unit: 'unidad' },
+          ],
+          estimatedMissingCost: 2500,
+          budgetRemaining: 17500,
+          withinBudget: true,
+          convenience: 85,
+          reason: 'Buena opción.',
+        },
+        {
+          name: 'Receta 2',
+          description: 'Desc 2',
+          totalMinutes: 20,
+          ingredients: [
+            { name: 'papa', quantity: 2, unit: 'unidad' },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            { name: 'papa', quantity: 2, unit: 'unidad' },
+          ],
+          estimatedMissingCost: 2500,
+          budgetRemaining: 17500,
+          withinBudget: true,
+          convenience: 85,
+          reason: 'Buena opción.',
+        },
+        {
+          name: 'Receta 3',
+          description: 'Desc 3',
+          totalMinutes: 20,
+          ingredients: [
+            { name: 'arroz', quantity: 200, unit: 'g' },
+          ],
+          steps: ['Preparar.'],
+          availableIngredients: [],
+          missingIngredients: [
+            { name: 'arroz', quantity: 200, unit: 'g' },
+          ],
+          estimatedMissingCost: 3500,
+          budgetRemaining: 16500,
+          withinBudget: true,
+          convenience: 85,
+          reason: 'Buena opción.',
+        },
+      ],
+    });
+
+    const requestPayload = structuredClone(validRequest);
+    const expectedCopy = structuredClone(validRequest);
+
+    const response = await request(app)
+      .post('/api/meal-plans/generate')
+      .send(requestPayload);
+
+    expect(response.status).toBe(200);
+    expect(requestPayload).toEqual(expectedCopy);
+  });
 });

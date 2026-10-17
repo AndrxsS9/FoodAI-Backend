@@ -18,24 +18,13 @@ import {
 } from '../pricing/ingredientPrice.service';
 
 import { AppError } from '../../utils/errors';
+import { prepareIngredientName } from '../../utils/ingredientIdentity';
 
 interface RecipeCombination {
   recipes: RecommendedRecipe[];
   totalEstimatedMissingCost: number;
   totalConvenience: number;
   totalMinutes: number;
-}
-
-function normalizeIngredientName(
-  name: string,
-): string {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\p{L}\p{N}\s]/gu, '')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 /*
@@ -63,18 +52,18 @@ function getUniqueMissingIngredients(
     new Map<string, RecipeIngredient>();
 
   for (const ingredient of ingredients) {
-    const normalizedName =
-      normalizeIngredientName(
+    const ingredientIdentity =
+      prepareIngredientName(
         ingredient.name,
       );
 
     if (
       !uniqueIngredients.has(
-        normalizedName,
+        ingredientIdentity,
       )
     ) {
       uniqueIngredients.set(
-        normalizedName,
+        ingredientIdentity,
         ingredient,
       );
     }

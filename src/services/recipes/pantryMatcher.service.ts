@@ -6,16 +6,39 @@ import type {
   Ingredient,
 } from '../../schemas/ingredient.schema';
 
-function normalizeIngredientName(
-  name: string,
-): string {
+import { prepareIngredientName } from '../../utils/ingredientIdentity';
+
+function tokenize(name: string): string[] {
+  if (!name) {
+    return [];
+  }
+
   return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\p{L}\p{N}\s]/gu, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .split(' ')
+    .filter((token) => token.length > 0);
+}
+
+function containsContiguousPhrase(
+  haystack: string[],
+  needle: string[],
+): boolean {
+  if (
+    needle.length === 0 ||
+    needle.length > haystack.length
+  ) {
+    return false;
+  }
+
+  return haystack.some((_, startIndex) => {
+    if (startIndex + needle.length > haystack.length) {
+      return false;
+    }
+
+    return needle.every(
+      (needleToken, offset) =>
+        haystack[startIndex + offset] === needleToken,
+    );
+  });
 }
 
 function ingredientNamesMatch(
@@ -23,23 +46,42 @@ function ingredientNamesMatch(
   pantryIngredient: string,
 ): boolean {
   const recipeName =
-    normalizeIngredientName(recipeIngredient);
+    prepareIngredientName(recipeIngredient);
 
   const pantryName =
-    normalizeIngredientName(pantryIngredient);
+    prepareIngredientName(pantryIngredient);
+
+  if (!recipeName || !pantryName) {
+    return false;
+  }
 
   if (recipeName === pantryName) {
     return true;
   }
 
+  const recipeTokens = tokenize(recipeName);
+  const pantryTokens = tokenize(pantryName);
+
   /*
-   * Ayuda con casos sencillos como:
+   * Coincidencia parcial por secuencias contiguas de palabras completas:
    * "tomate" ↔ "tomate rojo"
    * "pechuga de pollo" ↔ "pollo"
+   * "carne de res" ↔ "carne de res magra"
+   *
+   * Evita falsos positivos como:
+   * "sal" ↔ "salsa"
+   * "pan" ↔ "panela"
+   * "ajo" ↔ "bajo"
    */
   return (
-    recipeName.includes(pantryName) ||
-    pantryName.includes(recipeName)
+    containsContiguousPhrase(
+      recipeTokens,
+      pantryTokens,
+    ) ||
+    containsContiguousPhrase(
+      pantryTokens,
+      recipeTokens,
+    )
   );
 }
 
