@@ -434,4 +434,165 @@ describe('pantryMatcher.service - matchRecipeWithPantry', () => {
       expect(pantry).toEqual(pantryClone);
     });
   });
+
+  describe('Sinónimos controlados de ingredientes', () => {
+    it('1. papa ↔ patata = disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'patata', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('papa')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('patata');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('2. cebolla larga ↔ cebolla de rama = disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'cebolla de rama', quantity: 1, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('cebolla larga')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('cebolla de rama');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('3. espagueti ↔ spaghetti = disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'spaghetti', quantity: 200, unit: 'g' },
+      ]);
+      const pantry = [buildPantryIngredient('espagueti')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('spaghetti');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('4. aguacate ↔ palta = disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'palta', quantity: 1, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('aguacate')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('palta');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('5. maíz ↔ choclo = disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'choclo', quantity: 1, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('maíz')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('choclo');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('6. dirección inversa de sinónimos: papa ↔ patata y maíz ↔ choclo', () => {
+      const recipePapa = buildRecipe([
+        { name: 'papa', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantryPatata = [buildPantryIngredient('patata')];
+      const resultPapa = matchRecipeWithPantry(recipePapa, pantryPatata);
+
+      expect(resultPapa.availableIngredients).toHaveLength(1);
+      expect(resultPapa.availableIngredients[0].name).toBe('papa');
+
+      const recipeMaiz = buildRecipe([
+        { name: 'maíz', quantity: 1, unit: 'unidad' },
+      ]);
+      const pantryChoclo = [buildPantryIngredient('choclo')];
+      const resultMaiz = matchRecipeWithPantry(recipeMaiz, pantryChoclo);
+
+      expect(resultMaiz.availableIngredients).toHaveLength(1);
+      expect(resultMaiz.availableIngredients[0].name).toBe('maíz');
+    });
+
+    it('7. combinación de coincidencia exacta, alias, frase parcial y faltante', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 200, unit: 'g' },
+        { name: 'palta', quantity: 1, unit: 'unidad' },
+        { name: 'pechuga de pollo', quantity: 300, unit: 'g' },
+        { name: 'zanahoria', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz'),
+        buildPantryIngredient('aguacate'),
+        buildPantryIngredient('pollo'),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(3);
+      expect(result.availableIngredients.map((i) => i.name)).toEqual([
+        'arroz',
+        'palta',
+        'pechuga de pollo',
+      ]);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('zanahoria');
+    });
+
+    it('8. confirmar que "papa" NO coincide con "papaya"', () => {
+      const recipe = buildRecipe([
+        { name: 'papa', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('papaya')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('papa');
+    });
+
+    it('9. confirmar que "pasta" NO coincide con "espagueti"', () => {
+      const recipe = buildRecipe([
+        { name: 'pasta', quantity: 250, unit: 'g' },
+      ]);
+      const pantry = [buildPantryIngredient('espagueti')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('pasta');
+    });
+
+    it('10. conservar casos anti-falsos-positivos junto con aliases', () => {
+      const recipe = buildRecipe([
+        { name: 'sal', quantity: null, unit: 'desconocida' },
+        { name: 'pan', quantity: 1, unit: 'unidad' },
+        { name: 'ajo', quantity: 1, unit: 'unidad' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('salsa'),
+        buildPantryIngredient('panela'),
+        buildPantryIngredient('bajo'),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(3);
+      expect(result.missingIngredients.map((i) => i.name)).toEqual([
+        'sal',
+        'pan',
+        'ajo',
+      ]);
+    });
+  });
 });
