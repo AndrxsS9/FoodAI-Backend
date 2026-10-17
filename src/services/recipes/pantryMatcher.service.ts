@@ -6,13 +6,7 @@ import type {
   Ingredient,
 } from '../../schemas/ingredient.schema';
 
-import { canonicalizeIngredientName } from '../../utils/ingredientAliases';
-import { singularizeIngredientName } from '../../utils/ingredientPlural';
-
-function prepareIngredientName(name: string): string {
-  const singularized = singularizeIngredientName(name);
-  return canonicalizeIngredientName(singularized);
-}
+import { prepareIngredientName } from '../../utils/ingredientIdentity';
 
 function tokenize(name: string): string[] {
   if (!name) {

@@ -2,7 +2,7 @@ import type {
   RecipeIngredient,
 } from '../../schemas/recipe.schema';
 
-import { normalizeIngredientName } from '../../utils/ingredientName';
+import { prepareIngredientName } from '../../utils/ingredientIdentity';
 
 interface PriceRule {
   aliases: string[];
@@ -111,14 +111,18 @@ const UNKNOWN_INGREDIENT_ESTIMATED_COST = 5000;
 function findPriceRule(
   ingredientName: string,
 ): PriceRule | undefined {
-  const normalizedName =
-    normalizeIngredientName(ingredientName);
+  const preparedName =
+    prepareIngredientName(ingredientName);
+
+  if (!preparedName) {
+    return undefined;
+  }
 
   return ingredientPriceCatalog.find((rule) =>
     rule.aliases.some(
       (alias) =>
-        normalizeIngredientName(alias) ===
-        normalizedName,
+        prepareIngredientName(alias) ===
+        preparedName,
     ),
   );
 }

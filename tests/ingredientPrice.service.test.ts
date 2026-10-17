@@ -117,6 +117,43 @@ describe('ingredientPrice.service', () => {
 
       expect(ingredient).toEqual(copy);
     });
+
+    it('16. Formas equivalentes de papa: papa, papas, patata y patatas usan el precio existente de 2500', () => {
+      expect(estimateIngredientCost(buildIngredient('papa'))).toBe(2500);
+      expect(estimateIngredientCost(buildIngredient('papas'))).toBe(2500);
+      expect(estimateIngredientCost(buildIngredient('patata'))).toBe(2500);
+      expect(estimateIngredientCost(buildIngredient('patatas'))).toBe(2500);
+    });
+
+    it('17. Alias con frase plural compatible: cebollas de rama → 2000 (cebolla larga)', () => {
+      expect(
+        estimateIngredientCost(buildIngredient('cebollas de rama')),
+      ).toBe(2000);
+      expect(
+        estimateIngredientCost(buildIngredient('cebolla de rama')),
+      ).toBe(2000);
+      expect(
+        estimateIngredientCost(buildIngredient('cebolla larga')),
+      ).toBe(2000);
+    });
+
+    it('18. Ingredientes sin regla de precio (aguacate, palta, maiz, choclo) usan fallback 5000 sin inventar valores', () => {
+      expect(estimateIngredientCost(buildIngredient('aguacate'))).toBe(5000);
+      expect(estimateIngredientCost(buildIngredient('palta'))).toBe(5000);
+      expect(estimateIngredientCost(buildIngredient('paltas'))).toBe(5000);
+      expect(estimateIngredientCost(buildIngredient('maiz'))).toBe(5000);
+      expect(estimateIngredientCost(buildIngredient('choclo'))).toBe(5000);
+    });
+
+    it('19. Inmutabilidad en estimateIngredientCost con plurales y aliases', () => {
+      const ingredient = buildIngredient('  Patatas  ', 3, 'unidad');
+      const copy = structuredClone(ingredient);
+
+      const cost = estimateIngredientCost(ingredient);
+
+      expect(cost).toBe(2500);
+      expect(ingredient).toEqual(copy);
+    });
   });
 
   describe('estimateMissingIngredientsCost', () => {
@@ -172,6 +209,20 @@ describe('ingredientPrice.service', () => {
 
       estimateMissingIngredientsCost(ingredients);
 
+      expect(ingredients).toEqual(copy);
+    });
+
+    it('20. Plurales y aliases en estimateMissingIngredientsCost calculan correctamente e inmutables', () => {
+      const ingredients = [
+        buildIngredient('patatas', 2, 'unidad'),
+        buildIngredient('cebollas de rama', 1, 'unidad'),
+      ];
+      const copy = structuredClone(ingredients);
+
+      const total = estimateMissingIngredientsCost(ingredients);
+
+      // 2500 (patatas -> papa) + 2000 (cebollas de rama -> cebolla larga) = 4500
+      expect(total).toBe(4500);
       expect(ingredients).toEqual(copy);
     });
   });

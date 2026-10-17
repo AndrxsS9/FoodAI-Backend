@@ -18,7 +18,7 @@ import {
 } from '../pricing/ingredientPrice.service';
 
 import { AppError } from '../../utils/errors';
-import { normalizeIngredientName } from '../../utils/ingredientName';
+import { prepareIngredientName } from '../../utils/ingredientIdentity';
 
 interface RecipeCombination {
   recipes: RecommendedRecipe[];
@@ -52,18 +52,18 @@ function getUniqueMissingIngredients(
     new Map<string, RecipeIngredient>();
 
   for (const ingredient of ingredients) {
-    const normalizedName =
-      normalizeIngredientName(
+    const ingredientIdentity =
+      prepareIngredientName(
         ingredient.name,
       );
 
     if (
       !uniqueIngredients.has(
-        normalizedName,
+        ingredientIdentity,
       )
     ) {
       uniqueIngredients.set(
-        normalizedName,
+        ingredientIdentity,
         ingredient,
       );
     }
