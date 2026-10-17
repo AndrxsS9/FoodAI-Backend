@@ -257,4 +257,181 @@ describe('pantryMatcher.service - matchRecipeWithPantry', () => {
     expect(recipe).toEqual(recipeClone);
     expect(pantry).toEqual(pantryClone);
   });
+
+  describe('Prevención de falsos positivos y coincidencia por secuencias contiguas de palabras', () => {
+    it('1. "sal" NO debe coincidir con "salsa"', () => {
+      const recipe = buildRecipe([
+        { name: 'sal', quantity: null, unit: 'desconocida' },
+      ]);
+      const pantry = [buildPantryIngredient('salsa')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('sal');
+    });
+
+    it('2. "pan" NO debe coincidir con "panela"', () => {
+      const recipe = buildRecipe([
+        { name: 'pan', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('panela')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('pan');
+    });
+
+    it('3. "ajo" NO debe coincidir con "bajo"', () => {
+      const recipe = buildRecipe([
+        { name: 'ajo', quantity: 1, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('bajo')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('ajo');
+    });
+
+    it('4. "arroz" NO debe coincidir con "arrozado"', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 200, unit: 'g' },
+      ]);
+      const pantry = [buildPantryIngredient('arrozado')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('arroz');
+    });
+
+    it('5. "pollo" SÍ debe coincidir con "pechuga de pollo"', () => {
+      const recipe = buildRecipe([
+        { name: 'pollo', quantity: 300, unit: 'g' },
+      ]);
+      const pantry = [buildPantryIngredient('pechuga de pollo')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('pollo');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('6. "tomate" SÍ debe coincidir con "tomate rojo"', () => {
+      const recipe = buildRecipe([
+        { name: 'tomate', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('tomate rojo')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('tomate');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('7. "ajo" SÍ debe coincidir con "ajo en polvo"', () => {
+      const recipe = buildRecipe([
+        { name: 'ajo', quantity: 1, unit: 'cucharadita' },
+      ]);
+      const pantry = [buildPantryIngredient('ajo en polvo')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('ajo');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('8. "carne de res" SÍ debe coincidir con "carne de res magra"', () => {
+      const recipe = buildRecipe([
+        { name: 'carne de res', quantity: 400, unit: 'g' },
+      ]);
+      const pantry = [buildPantryIngredient('carne de res magra')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('carne de res');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('9. Dirección inversa: receta "tomate rojo" con despensa "tomate" debe coincidir', () => {
+      const recipe = buildRecipe([
+        { name: 'tomate rojo', quantity: 3, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('tomate')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('tomate rojo');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('10. Dos nombres completamente distintos se clasifican como faltantes', () => {
+      const recipe = buildRecipe([
+        { name: 'zanahoria', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz'),
+        buildPantryIngredient('pollo'),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('zanahoria');
+    });
+
+    it('11. Receta con mezcla de coincidencia exacta, frase contigua y faltante', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 200, unit: 'g' },
+        { name: 'pechuga de pollo', quantity: 300, unit: 'g' },
+        { name: 'salsa de soja', quantity: 15, unit: 'ml' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz'),
+        buildPantryIngredient('pollo'),
+        buildPantryIngredient('sal'), // 'sal' no debe hacer match con 'salsa de soja'
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(2);
+      expect(result.availableIngredients.map((i) => i.name)).toEqual([
+        'arroz',
+        'pechuga de pollo',
+      ]);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('salsa de soja');
+    });
+
+    it('12. Mantener inmutabilidad de recipe y pantry con comparación de frases', () => {
+      const recipe = buildRecipe([
+        { name: 'carne de res magra', quantity: 500, unit: 'g' },
+        { name: 'salsa', quantity: 30, unit: 'ml' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('carne de res'),
+        buildPantryIngredient('sal'),
+      ];
+
+      const recipeClone = structuredClone(recipe);
+      const pantryClone = structuredClone(pantry);
+
+      matchRecipeWithPantry(recipe, pantry);
+
+      expect(recipe).toEqual(recipeClone);
+      expect(pantry).toEqual(pantryClone);
+    });
+  });
 });
