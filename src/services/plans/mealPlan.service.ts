@@ -18,24 +18,13 @@ import {
 } from '../pricing/ingredientPrice.service';
 
 import { AppError } from '../../utils/errors';
+import { normalizeIngredientName } from '../../utils/ingredientName';
 
 interface RecipeCombination {
   recipes: RecommendedRecipe[];
   totalEstimatedMissingCost: number;
   totalConvenience: number;
   totalMinutes: number;
-}
-
-function normalizeIngredientName(
-  name: string,
-): string {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\p{L}\p{N}\s]/gu, '')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 /*
