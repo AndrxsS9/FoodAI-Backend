@@ -70,4 +70,47 @@ describe('ingredientName utility - normalizeIngredientName', () => {
       normalizeIngredientName('  ¡¿Pechúga... (de)   Póllo?!  '),
     ).toBe('pechuga de pollo');
   });
+
+  describe('separación de palabras mediante signos y puntuación', () => {
+    it('13. guion como separador de palabras: "tomate-rojo" → "tomate rojo"', () => {
+      expect(normalizeIngredientName('tomate-rojo')).toBe('tomate rojo');
+    });
+
+    it('14. barra como separador de palabras: "cebolla/ajo" → "cebolla ajo"', () => {
+      expect(normalizeIngredientName('cebolla/ajo')).toBe('cebolla ajo');
+    });
+
+    it('15. coma sin espacio como separador: "sal,pimienta" → "sal pimienta"', () => {
+      expect(normalizeIngredientName('sal,pimienta')).toBe('sal pimienta');
+    });
+
+    it('16. múltiples guiones en frase: "carne-de-res" → "carne de res"', () => {
+      expect(normalizeIngredientName('carne-de-res')).toBe('carne de res');
+    });
+
+    it('17. combinación de signos, tildes y mayúsculas: "  Tomáte---Rojo!! " → "tomate rojo"', () => {
+      expect(normalizeIngredientName('  Tomáte---Rojo!! ')).toBe('tomate rojo');
+    });
+
+    it('18. múltiples signos diferentes consecutivos no generan múltiples espacios', () => {
+      expect(
+        normalizeIngredientName('pollo_/*-&%arroz'),
+      ).toBe('pollo arroz');
+      expect(
+        normalizeIngredientName('...---sal,,,pimienta!?!?'),
+      ).toBe('sal pimienta');
+    });
+
+    it('19. los números siguen conservándose entre signos o palabras', () => {
+      expect(normalizeIngredientName('harina-000')).toBe('harina 000');
+      expect(normalizeIngredientName('leche 2%')).toBe('leche 2');
+      expect(normalizeIngredientName('arroz-1/2-taza')).toBe('arroz 1 2 taza');
+    });
+
+    it('20. string vacío o compuesto únicamente de signos devuelve string vacío', () => {
+      expect(normalizeIngredientName('')).toBe('');
+      expect(normalizeIngredientName('   ')).toBe('');
+      expect(normalizeIngredientName('---/,,;!!??')).toBe('');
+    });
+  });
 });

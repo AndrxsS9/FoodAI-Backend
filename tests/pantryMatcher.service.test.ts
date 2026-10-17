@@ -810,4 +810,55 @@ describe('pantryMatcher.service - matchRecipeWithPantry', () => {
       ]);
     });
   });
+
+  describe('coincidencias con signos como separadores de palabras', () => {
+    it('1. receta "tomate rojo" y despensa "tomate-rojo" deben coincidir', () => {
+      const recipe = buildRecipe([
+        { name: 'tomate rojo', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('tomate-rojo')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('tomate rojo');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('2. receta "carne de res" y despensa "carne-de-res" deben coincidir', () => {
+      const recipe = buildRecipe([
+        { name: 'carne de res', quantity: 500, unit: 'g' },
+      ]);
+      const pantry = [buildPantryIngredient('carne-de-res')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('carne de res');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('3. mantener los falsos positivos rechazados: "sal" ≠ "salsa", "pan" ≠ "panela", "ajo" ≠ "bajo"', () => {
+      const recipe = buildRecipe([
+        { name: 'sal', quantity: null, unit: 'desconocida' },
+        { name: 'pan', quantity: 1, unit: 'unidad' },
+        { name: 'ajo', quantity: 1, unit: 'unidad' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('salsa'),
+        buildPantryIngredient('panela'),
+        buildPantryIngredient('bajo'),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(3);
+      expect(result.missingIngredients.map((i) => i.name)).toEqual([
+        'sal',
+        'pan',
+        'ajo',
+      ]);
+    });
+  });
 });
