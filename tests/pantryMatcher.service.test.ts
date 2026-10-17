@@ -595,4 +595,219 @@ describe('pantryMatcher.service - matchRecipeWithPantry', () => {
       ]);
     });
   });
+
+  describe('Formas singulares y plurales frecuentes de ingredientes', () => {
+    it('1. receta tomate / despensa tomates → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'tomate', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('tomates')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('tomate');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('2. receta huevos / despensa huevo → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'huevos', quantity: 4, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('huevo')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('huevos');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('3. receta papa / despensa papas → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'papa', quantity: 3, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('papas')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('papa');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('4. receta papa / despensa patatas → disponible (combina singularización + alias)', () => {
+      const recipe = buildRecipe([
+        { name: 'papa', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('patatas')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('papa');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('5. receta aguacate / despensa paltas → disponible (combina singularización + alias)', () => {
+      const recipe = buildRecipe([
+        { name: 'aguacate', quantity: 1, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('paltas')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('aguacate');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('6. receta cebolla larga / despensa cebollas de rama → disponible (frase plural + alias)', () => {
+      const recipe = buildRecipe([
+        { name: 'cebolla larga', quantity: 1, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('cebollas de rama')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('cebolla larga');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('7. receta plátano / despensa plátanos → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'plátano', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('plátanos')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('plátano');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('8. receta limón / despensa limones → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'limón', quantity: 1, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('limones')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('limón');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('9. dirección inversa: plural en receta / singular en despensa', () => {
+      // Caso A: zanahorias en receta / zanahoria en despensa
+      const recipeA = buildRecipe([
+        { name: 'zanahorias', quantity: 3, unit: 'unidad' },
+      ]);
+      const pantryA = [buildPantryIngredient('zanahoria')];
+      const resultA = matchRecipeWithPantry(recipeA, pantryA);
+      expect(resultA.availableIngredients).toHaveLength(1);
+      expect(resultA.availableIngredients[0].name).toBe('zanahorias');
+
+      // Caso B: patatas en receta / papa en despensa (plural + alias en dirección inversa)
+      const recipeB = buildRecipe([
+        { name: 'patatas', quantity: 4, unit: 'unidad' },
+      ]);
+      const pantryB = [buildPantryIngredient('papa')];
+      const resultB = matchRecipeWithPantry(recipeB, pantryB);
+      expect(resultB.availableIngredients).toHaveLength(1);
+      expect(resultB.availableIngredients[0].name).toBe('patatas');
+
+      // Caso C: limones en receta / limón en despensa
+      const recipeC = buildRecipe([
+        { name: 'limones', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantryC = [buildPantryIngredient('limón')];
+      const resultC = matchRecipeWithPantry(recipeC, pantryC);
+      expect(resultC.availableIngredients).toHaveLength(1);
+      expect(resultC.availableIngredients[0].name).toBe('limones');
+    });
+
+    it('10. combinación de ingredientes: exacto, plural, alias, plural + alias y faltante', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 200, unit: 'g' },
+        { name: 'tomate', quantity: 2, unit: 'unidad' },
+        { name: 'choclo', quantity: 1, unit: 'unidad' },
+        { name: 'paltas', quantity: 2, unit: 'unidad' },
+        { name: 'carne de res', quantity: 300, unit: 'g' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz'),
+        buildPantryIngredient('tomates'),
+        buildPantryIngredient('maíz'),
+        buildPantryIngredient('aguacate'),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(4);
+      expect(result.availableIngredients.map((i) => i.name)).toEqual([
+        'arroz',
+        'tomate',
+        'choclo',
+        'paltas',
+      ]);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('carne de res');
+    });
+
+    it('11. confirmar que "pan" y "panes" NO coinciden si no hay regla declarada', () => {
+      const recipe = buildRecipe([
+        { name: 'pan', quantity: 1, unit: 'unidad' },
+      ]);
+      const pantry = [buildPantryIngredient('panes')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('pan');
+    });
+
+    it('12. confirmar que "arroz" y "arroces" NO coinciden si no hay regla declarada', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 200, unit: 'g' },
+      ]);
+      const pantry = [buildPantryIngredient('arroces')];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('arroz');
+    });
+
+    it('13. mantener casos anti-falsos-positivos junto con plurales', () => {
+      const recipe = buildRecipe([
+        { name: 'sal', quantity: null, unit: 'desconocida' },
+        { name: 'pan', quantity: 1, unit: 'unidad' },
+        { name: 'ajo', quantity: 1, unit: 'unidad' },
+        { name: 'papa', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('salsa'),
+        buildPantryIngredient('panela'),
+        buildPantryIngredient('bajo'),
+        buildPantryIngredient('papaya'),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(4);
+      expect(result.missingIngredients.map((i) => i.name)).toEqual([
+        'sal',
+        'pan',
+        'ajo',
+        'papa',
+      ]);
+    });
+  });
 });

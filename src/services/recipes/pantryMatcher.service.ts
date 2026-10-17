@@ -7,6 +7,12 @@ import type {
 } from '../../schemas/ingredient.schema';
 
 import { canonicalizeIngredientName } from '../../utils/ingredientAliases';
+import { singularizeIngredientName } from '../../utils/ingredientPlural';
+
+function prepareIngredientName(name: string): string {
+  const singularized = singularizeIngredientName(name);
+  return canonicalizeIngredientName(singularized);
+}
 
 function tokenize(name: string): string[] {
   if (!name) {
@@ -46,10 +52,10 @@ function ingredientNamesMatch(
   pantryIngredient: string,
 ): boolean {
   const recipeName =
-    canonicalizeIngredientName(recipeIngredient);
+    prepareIngredientName(recipeIngredient);
 
   const pantryName =
-    canonicalizeIngredientName(pantryIngredient);
+    prepareIngredientName(pantryIngredient);
 
   if (!recipeName || !pantryName) {
     return false;
