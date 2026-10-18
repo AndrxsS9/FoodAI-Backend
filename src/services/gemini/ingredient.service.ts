@@ -1,3 +1,5 @@
+import { classifyGeminiError } from './geminiError';
+import { executeGeminiRequest } from './geminiRequest';
 import { geminiClient } from './gemini.client';
 
 import {
@@ -22,27 +24,29 @@ export async function analyzeIngredientsFromImage({
   const base64Image = buffer.toString('base64');
 
   try {
-    const interaction = await geminiClient.interactions.create({
-      model: 'gemini-3.8-flash',
+    const interaction = await executeGeminiRequest(() =>
+      geminiClient.interactions.create({
+        model: 'gemini-3.8-flash',
 
-      input: [
-        {
-          type: 'image',
-          data: base64Image,
-          mime_type: mimeType,
-        },
-        {
+        input: [
+          {
+            type: 'image',
+            data: base64Image,
+            mime_type: mimeType,
+          },
+          {
+            type: 'text',
+            text: detectIngredientsPrompt,
+          },
+        ],
+
+        response_format: {
           type: 'text',
-          text: detectIngredientsPrompt,
+          mime_type: 'application/json',
+          schema: ingredientAnalysisJsonSchema,
         },
-      ],
-
-      response_format: {
-        type: 'text',
-        mime_type: 'application/json',
-        schema: ingredientAnalysisJsonSchema,
-      },
-    });
+      }),
+    );
 
     if (!interaction.output_text) {
       throw new AppError(
@@ -90,23 +94,12 @@ export async function analyzeIngredientsFromImage({
       throw error;
     }
 
-    /*
-     * Los errores del SDK de Gemini pueden contener
-     * status o statusCode.
-     */
-    const geminiError = error as {
-      status?: number;
-      statusCode?: number;
-    };
-
-    const status =
-      geminiError.status ??
-      geminiError.statusCode;
+    const errorKind = classifyGeminiError(error);
 
     /*
      * Límite de solicitudes / cuota agotada.
      */
-    if (status === 429) {
+    if (errorKind === 'rate_limit') {
       console.warn(
         '⚠️ Gemini alcanzó el límite de solicitudes.',
       );
@@ -121,7 +114,7 @@ export async function analyzeIngredientsFromImage({
     /*
      * Gemini temporalmente saturado o no disponible.
      */
-    if (status === 503) {
+    if (errorKind === 'unavailable') {
       console.warn(
         '⚠️ Gemini está temporalmente no disponible.',
       );
@@ -130,6 +123,21 @@ export async function analyzeIngredientsFromImage({
         'El servicio de análisis está temporalmente ocupado. Intenta nuevamente más tarde.',
         503,
         'GEMINI_UNAVAILABLE',
+      );
+    }
+
+    /*
+     * Solicitud excedió el tiempo límite.
+     */
+    if (errorKind === 'timeout') {
+      console.warn(
+        '⚠️ Gemini tardó demasiado en responder al analizar la imagen.',
+      );
+
+      throw new AppError(
+        'El servicio de análisis tardó demasiado en responder. Intenta nuevamente.',
+        504,
+        'GEMINI_TIMEOUT',
       );
     }
 
