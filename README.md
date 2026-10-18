@@ -1,95 +1,129 @@
 # FoodAI Backend
 
-FoodAI es una aplicación móvil orientada a aprovechar los alimentos disponibles en casa, reducir desperdicios y recomendar recetas según la despensa y el presupuesto. Este repositorio contiene el backend HTTP de la aplicación. El backend recibe ingredientes o una imagen, utiliza Gemini para proponer identificaciones y recetas, y aplica lógica propia para estimar costos y ordenar recomendaciones.
+FoodAI es una aplicación orientada a aprovechar los alimentos disponibles en casa, reducir el desperdicio de comida y recomendar recetas personalizadas según la despensa y el presupuesto del usuario. Este repositorio contiene la API REST backend desarrollada en Node.js y Express con TypeScript.
 
-## Tecnologías
+El backend recibe los ingredientes disponibles (de forma manual o extraídos desde una fotografía), consulta al modelo Gemini para sugerir recetas y planes de alimentación, y ejecuta lógica propia determinista para normalizar ingredientes, comparar suficiencia de cantidades, estimar costos en pesos colombianos (COP), calcular conveniencia y ordenar las mejores opciones.
 
-- Node.js
-- TypeScript
-- Express
-- Zod para validar entradas y respuestas
-- Multer para recibir imágenes
-- `@google/genai` para integrar Gemini
-- Vitest y Supertest para las pruebas
+---
 
-## Instalación y ejecución
+## Tecnologías Principales
 
-Requisitos: Node.js y npm instalados.
+- **Entorno de ejecución:** Node.js (>= 20)
+- **Lenguaje:** TypeScript
+- **Framework web:** Express 5
+- **Seguridad y protección:** Helmet, CORS y `express-rate-limit`
+- **Validación de esquemas:** Zod
+- **Procesamiento de archivos:** Multer (almacenamiento en memoria para imágenes)
+- **Inteligencia Artificial:** SDK oficial `@google/genai` (`gemini-3.8-flash`)
+- **Pruebas automatizadas:** Vitest y Supertest
+- **Integración continua:** GitHub Actions CI
 
+---
+
+## Instalación y Configuración
+
+### 1. Clonar el repositorio
 ```bash
 git clone https://github.com/AndrxsS9/FoodAI-Backend.git
 cd FoodAI-Backend
 npm install
 ```
 
-Copia `.env.example` a `.env` y configura la clave de Gemini:
-
-```env
-GEMINI_API_KEY=tu_clave_de_gemini
-PORT=3000
-NODE_ENV=development
-```
-
-`GEMINI_API_KEY` es obligatoria. `PORT` y `NODE_ENV` tienen valores predeterminados si no se configuran. No compartas ni publiques tu clave.
-
-Inicia el servidor de desarrollo:
+### 2. Variables de entorno
+Copia la plantilla de ejemplo y configura tu clave de API:
 
 ```bash
-npm run dev
+cp .env.example .env
 ```
 
-Por defecto, la API queda disponible en `http://localhost:3000`.
+Contenido de `.env`:
+```env
+PORT=3000
+NODE_ENV=development
+GEMINI_API_KEY=tu_clave_de_gemini
+```
 
-## Scripts
+- `GEMINI_API_KEY`: Clave obligatoria de Google Gemini. Nunca debe subirse al control de versiones ni exponerse en entornos públicos.
+- `PORT`: Puerto HTTP (por defecto `3000`).
+- `NODE_ENV`: Entorno de ejecución (`development`, `test` o `production`).
 
-| Comando | Descripción |
+---
+
+## Scripts Disponibles
+
+| Script | Descripción |
 | --- | --- |
-| `npm run dev` | Ejecuta el servidor en modo desarrollo con recarga. |
-| `npm run build` | Compila TypeScript en `dist/`. |
-| `npm run start` | Inicia el servidor compilado. |
-| `npm run typecheck` | Comprueba los tipos sin generar archivos. |
-| `npm test` | Ejecuta las pruebas con Vitest. |
-| `npm run test:watch` | Ejecuta Vitest en modo interactivo. |
+| `npm run dev` | Inicia el servidor en modo desarrollo con recarga automática (`tsx watch`). |
+| `npm run build` | Compila el proyecto TypeScript hacia el directorio `dist/`. |
+| `npm start` | Ejecuta la aplicación compilada en producción desde `dist/server.js`. |
+| `npm run typecheck` | Verifica los tipos de TypeScript sin emitir archivos (`tsc --noEmit`). |
+| `npm test` | Ejecuta todas las pruebas unitarias y de integración con Vitest. |
+| `npm run test:watch` | Ejecuta Vitest en modo interactivo/observador. |
+| `npm run check` | Valida integralmente el backend ejecutando typecheck, suite de pruebas y compilación en un solo comando. |
 
-Después de compilar, `npm run start` inicia el servidor generado.
+---
 
-## API
+## Arquitectura de Alto Nivel
 
-Las respuestas exitosas usan el formato `{ "success": true, "data": ... }`. Los errores usan `{ "success": false, "error": { "code": "...", "message": "..." } }`; los errores de validación también incluyen `details`.
+El backend sigue una arquitectura desacoplada y orientada a servicios:
 
-### `GET /api/health`
+```text
+HTTP Request
+     │
+     ▼
+[Middlewares globales] ─── Helmet, CORS, Parser JSON/URL
+     │
+     ▼
+[Rate Limiting IA] ─────── express-rate-limit (endpoints costosos)
+     │
+     ▼
+[Router] ───────────────── Rutas HTTP montadas en /api/*
+     │
+     ▼
+[Controllers] ──────────── Validación Zod de entrada y orquestación
+     │
+     ▼
+[Services] ─────────────── Lógica de negocio determinista
+     ├── AI Service ────── Wrapper de resiliencia (retry 429/503, timeout 20s)
+     ├── Matcher ───────── Normalización, plurales, aliases, suficiencia de cantidades
+     ├── Pricing ───────── Catálogo local referencial de precios en COP
+     └── Convenience ───── Puntuación de conveniencia según despensa y presupuesto
+     │
+     ▼
+[HTTP Response] ────────── Formato uniforme de éxito o error
+```
 
-Verifica el estado de la API:
+---
 
+## Endpoints de la API
+
+Todas las respuestas exitosas siguen la estructura `{ "success": true, "data": ... }`. En caso de error, la respuesta entrega `{ "success": false, "error": { "code": "...", "message": "...", "details": [...] } }`.
+
+### 1. `GET /api/health`
+Verifica el estado del servicio. Este endpoint **no** consume cuota de IA ni está sujeto al rate limit de endpoints costosos.
+
+**Respuesta (200 OK):**
 ```json
 {
   "success": true,
   "data": {
     "status": "ok",
     "service": "FoodAI Backend",
-    "timestamp": "2026-01-01T12:00:00.000Z"
+    "timestamp": "2026-10-18T15:30:00.000Z"
   }
 }
 ```
 
-El `timestamp` se genera en cada solicitud.
+---
 
-### `POST /api/ingredients/analyze`
+### 2. `POST /api/ingredients/analyze`
+Analiza una fotografía de alimentos y devuelve los ingredientes identificados.
+- **Content-Type:** `multipart/form-data`
+- **Campo de archivo:** `image`
+- **Formatos soportados:** JPEG (`image/jpeg`), PNG (`image/png`), WEBP (`image/webp`)
+- **Límite de tamaño:** 8 MB
 
-Analiza una imagen y devuelve los ingredientes detectados. Envía el cuerpo como `multipart/form-data` con el archivo en el campo `image`.
-
-- Formatos MIME aceptados: JPEG (`image/jpeg`), PNG (`image/png`) y WEBP (`image/webp`).
-- Tamaño máximo: 8 MB.
-
-Ejemplo:
-
-```bash
-curl -X POST http://localhost:3000/api/ingredients/analyze \
-  -F "image=@despensa.jpg"
-```
-
-Respuesta de ejemplo:
-
+**Respuesta de ejemplo (200 OK):**
 ```json
 {
   "success": true,
@@ -97,7 +131,7 @@ Respuesta de ejemplo:
     "ingredients": [
       {
         "name": "tomate",
-        "quantity": 4,
+        "quantity": 3,
         "unit": "unidad",
         "needsReview": false
       },
@@ -112,32 +146,26 @@ Respuesta de ejemplo:
 }
 ```
 
-`needsReview` indica que la identificación o la cantidad requiere confirmación. `quantity` puede ser `null` cuando no se puede estimar y `unit` puede ser `"desconocida"`.
+---
 
-### `POST /api/recipes/recommend`
+### 3. `POST /api/recipes/recommend`
+Recibe la despensa del usuario y genera recomendaciones de recetas adaptadas al presupuesto.
+- **Content-Type:** `application/json`
 
-Genera y ordena recomendaciones de recetas. Envía JSON con:
-
-- `pantry`: al menos un ingrediente disponible, cada uno con `name`, `quantity` (número positivo o `null`), `unit` y `needsReview`.
-- `budget`: presupuesto no negativo.
-- `servings`: número entero de porciones entre 1 y 12.
-- `maxMinutes`: límite opcional de tiempo en minutos, entero positivo de hasta 240.
-
-Ejemplo de solicitud:
-
+**Cuerpo de la solicitud:**
 ```json
 {
   "pantry": [
     {
-      "name": "tomate",
-      "quantity": 4,
-      "unit": "unidad",
-      "needsReview": false
-    },
-    {
       "name": "arroz",
       "quantity": 500,
       "unit": "g",
+      "needsReview": false
+    },
+    {
+      "name": "huevo",
+      "quantity": 4,
+      "unit": "unidad",
       "needsReview": false
     }
   ],
@@ -147,81 +175,112 @@ Ejemplo de solicitud:
 }
 ```
 
-Cada receta recomendada incluye sus datos de preparación (`name`, `description`, `totalMinutes`, `ingredients` y `steps`), además de:
-
-- `availableIngredients` y `missingIngredients`;
-- `estimatedMissingCost`: costo estimado de los ingredientes faltantes;
-- `budgetRemaining` y `withinBudget`;
-- `convenience`: puntuación calculada por FoodAI (actualmente de 0 a 95);
-- `reason`: explicación generada por las reglas de conveniencia.
-
-La respuesta contiene estas recetas en `data.recipes`.
-
-Gemini propone las recetas candidatas (entre una y cinco). FoodAI calcula de manera determinística, a partir de esas candidatas, qué ingredientes están disponibles o faltan, los costos estimados, el presupuesto restante, si cada receta cabe en el presupuesto, la conveniencia y el orden de las recomendaciones. Las recomendaciones se ordenan por mayor conveniencia, menor costo faltante y menor tiempo de preparación, en ese orden de prioridad. Gemini no calcula estos valores ni determina ese orden.
-
-### `POST /api/meal-plans/generate`
-
-Genera un plan de exactamente tres días a partir de una solicitud JSON con los mismos campos y validaciones que `/api/recipes/recommend` (`pantry`, `budget`, `servings` y `maxMinutes` opcional).
-
-El endpoint reutiliza el motor de recomendaciones y selecciona una combinación de tres recetas candidatas. El `budget` se aplica al costo estimado de ingredientes faltantes del plan completo, no por día. Para esta estimación del MVP, si varias recetas requieren un ingrediente faltante con el mismo nombre normalizado, se cuenta una sola vez.
-
-La respuesta incluye `data.days` con los días 1, 2 y 3, cada uno con su `recipe`, además de `totalEstimatedMissingCost`, `budgetRemaining` y `withinBudget` para el plan completo.
-
-Las combinaciones se seleccionan con estos criterios:
-
-Si hay combinaciones dentro del presupuesto:
-1. Mayor conveniencia acumulada.
-2. Menor costo estimado total.
-3. Menor tiempo total.
-
-Si ninguna combinación entra en el presupuesto:
-1. Menor costo estimado total.
-2. Mayor conveniencia acumulada.
-3. Menor tiempo total.
-
-## Lógica y limitaciones actuales
-
-- Los precios son estimaciones de un catálogo local; no son precios en tiempo real.
-- La disponibilidad de ingredientes se determina principalmente por coincidencia de nombres y existencia en la despensa.
-- No se controla completamente si las cantidades disponibles alcanzan para cada receta.
-- No se descuentan progresivamente los ingredientes usados entre los tres días del plan.
-- No hay conversiones avanzadas entre unidades.
-- El costo del plan deduplica por nombre los ingredientes faltantes repetidos para estimar una compra del MVP; no suma cantidades de esos ingredientes.
-- Las recetas y los análisis dependen de respuestas de Gemini. Este repositorio no afirma que el servicio haya sido validado exitosamente en producción.
-
-## Persistencia
-
-El backend es inicialmente stateless: no persiste despensa, recetas ni planes, y este repositorio no contiene una base de datos SQLite ni una base de datos remota. La persistencia de datos en el dispositivo está prevista para la aplicación móvil mediante Expo SQLite; no forma parte de este backend.
-
-## Estructura del proyecto
-
-```text
-src/
-  app.ts
-  server.ts
-  config/
-    env.ts
-  controllers/
-  middlewares/
-  prompts/
-  routes/
-  schemas/
-  services/
-    gemini/
-    plans/
-    pricing/
-    recipes/
-  utils/
-tests/
-  ingredients.routes.test.ts
-  mealPlans.routes.test.ts
-  recipes.routes.test.ts
+**Respuesta de ejemplo (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "recipes": [
+      {
+        "name": "Arroz frito con huevo",
+        "description": "Receta rápida y económica usando ingredientes básicos.",
+        "totalMinutes": 25,
+        "ingredients": [
+          { "name": "arroz", "quantity": 300, "unit": "g" },
+          { "name": "huevo", "quantity": 2, "unit": "unidad" }
+        ],
+        "steps": [
+          "Cocer el arroz con una pizca de sal.",
+          "Saltear el arroz con los huevos batidos."
+        ],
+        "availableIngredients": [
+          { "name": "arroz", "quantity": 300, "unit": "g" },
+          { "name": "huevo", "quantity": 2, "unit": "unidad" }
+        ],
+        "missingIngredients": [],
+        "estimatedMissingCost": 0,
+        "budgetRemaining": 20000,
+        "withinBudget": true,
+        "convenience": 95,
+        "reason": "Todos los ingredientes están disponibles en tu despensa y no requiere gasto adicional."
+      }
+    ]
+  }
+}
 ```
 
-- `routes/` conecta las rutas HTTP con sus controladores.
-- `controllers/` valida las solicitudes, llama a los servicios y construye las respuestas.
-- `schemas/` define las validaciones de entrada y salida con Zod.
-- `services/` contiene la integración con Gemini, las recomendaciones, los planes y las estimaciones.
-- `prompts/` contiene las instrucciones enviadas a Gemini.
-- `middlewares/` configura la carga de imágenes y el manejo de errores.
-- `tests/` cubre las rutas de análisis de ingredientes, recomendaciones y planes de comidas.
+---
+
+### 4. `POST /api/meal-plans/generate`
+Genera un plan de alimentación balanceado de exactamente **3 días** optimizando las combinaciones de recetas según presupuesto y conveniencia acumulada. El presupuesto se evalúa sobre el costo global del plan.
+
+---
+
+## Reglas de Negocio del Backend
+
+### 1. Coincidencia y Suficiencia de Ingredientes (`pantryMatcher`)
+- **Normalización de nombres:** Minúsculas, eliminación de acentos, caracteres especiales y espacios redundantes.
+- **Manejo controlado de plurales y singulares:** Conversión controlada (`tomates` $\rightarrow$ `tomate`, `huevos` $\rightarrow$ `huevo`).
+- **Resolución de alias:** Mapeo de términos gastronómicos comunes (`patata` $\rightarrow$ `papa`).
+- **Prevención de falsos positivos:** Evita coincidencias erróneas por subcadenas (por ejemplo, `salsa` no coincide con `sal`).
+- **Conversión de unidades compatibles:**
+  - Masa: gramos y kilogramos (`g` $\leftrightarrow$ `kg`).
+  - Volumen: mililitros y litros (`ml` $\leftrightarrow$ `l`).
+  - Conteo: unidades (`unidad`).
+- **Agregación de existencias múltiples:** Si la despensa tiene varias entradas compatibles de un mismo ingrediente (ej. 300 g de arroz y 250 g de arroz), se suman para evaluar si cubren el requerimiento (550 g $\ge$ 500 g).
+- **Política conservadora para cantidades desconocidas (`unknown`):** Si la cantidad o unidad no puede determinarse de forma segura, o se utilizan unidades culinarias no convertibles (tazas, cucharadas), se asume disponible en despensa sin cobrar costo faltante innecesario.
+
+### 2. Estimación de Costos
+- Basado en un catálogo referencial en moneda local (COP).
+- Si un ingrediente falta o su cantidad es insuficiente, se estima el costo de adquisición completo de dicho ingrediente en el catálogo. No se calcula costo proporcional a la fracción faltante en el MVP.
+
+### 3. Puntuación de Conveniencia
+- FoodAI calcula de forma determinista una puntuación entre 0 y 95 basada en la proporción de ingredientes disponibles (70%) y el presupuesto restante (30%). Gemini propone las recetas, pero **no** decide la conveniencia ni el orden final.
+
+---
+
+## Integración y Resiliencia con Gemini
+
+- **Modelo:** `gemini-3.8-flash` mediante `geminiClient.interactions.create`.
+- **Reintentos con Backoff:** Errores transitorios de cuota (`429`) o saturación (`503`) se reintentan hasta un máximo de 3 intentos totales (intento inicial + 2 reintentos) con backoff exponencial determinista (250 ms, 500 ms).
+- **Timeout controlado:** Cada solicitud cuenta con un temporizador de 20 segundos (`GEMINI_TIMEOUT_MS = 20_000`). Si se supera, se rechaza de inmediato con error `504` (`GEMINI_TIMEOUT`) sin reintentos automáticos.
+- **Aislamiento de parsing:** Respuestas vacías (`EMPTY_*`), JSON malformado (`INVALID_*_JSON`) o esquemas no válidos (`INVALID_*_RESPONSE`) fallan de inmediato sin reintentos inútiles.
+
+---
+
+## Protección de Solicitudes (Rate Limiting)
+
+Para proteger los recursos computacionales y la cuota de IA, las rutas que invocan Gemini (`/api/ingredients/analyze`, `/api/recipes/recommend`, `/api/meal-plans/generate`) están protegidas localmente mediante `express-rate-limit`:
+- **Ventana:** 60 segundos por IP.
+- **Límite:** 30 solicitudes.
+- **Respuesta ante exceso:** HTTP `429` con código de error propio: `RATE_LIMIT_EXCEEDED`.
+- El endpoint `/api/health` permanece libre de esta restricción.
+
+---
+
+## Pruebas Automatizadas y CI
+
+La suite de pruebas se encuentra organizada en el directorio `tests/` y valida todas las capas del backend sin realizar llamadas reales a la red ni consumir cuota de Gemini:
+- **Ejecución de pruebas:** `npm test`
+- **Validación completa:** `npm run check`
+
+Al cierre del MVP, el proyecto cuenta con 20 archivos de prueba y 444 tests automatizados aprobados.
+
+### Integración Continua (GitHub Actions)
+El flujo `.github/workflows/backend-ci.yml` ejecuta automáticamente `npm ci` y `npm run check` ante cualquier `push` o `pull_request` sobre las ramas `develop` y `main`, garantizando que ningún cambio degrade la calidad del código.
+
+---
+
+## Persistencia y Estado
+
+El backend de FoodAI es **completamente stateless**. No persiste despensa, recetas ni planes en una base de datos local o remota. La persistencia de datos en el dispositivo del usuario está diseñada para la capa móvil mediante Expo SQLite.
+
+---
+
+## Limitaciones Conocidas del MVP
+
+1. **Sin consumo progresivo de despensa:** No se descuentan los ingredientes utilizados de una receta para evaluar la siguiente en un plan de 3 días; cada receta o día se evalúa independientemente frente a la despensa inicial.
+2. **Conversiones culinarias restringidas:** No se realizan conversiones de unidades volumétricas no estandarizadas (`taza`, `cucharada`, `cucharadita`) ni conversiones entre masa y volumen (no se asumen densidades de alimentos).
+3. **Catálogo de precios local:** Los precios corresponden a un catálogo estático de referencia y no reflejan variaciones comerciales en tiempo real.
+4. **Costo de faltantes no proporcional:** Cuando un ingrediente en despensa no cubre la cantidad de la receta, se contabiliza el valor completo de la unidad de compra comercial, no la fracción exacta faltante.
+5. **Cancelación a nivel de red:** El timeout de 20s cancela la espera en la promesa de la aplicación Express, pero no necesariamente interrumpe la conexión TCP a nivel de socket si la API del SDK no ofrece `AbortSignal` en dicha llamada.
