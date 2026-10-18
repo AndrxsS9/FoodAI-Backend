@@ -7,6 +7,7 @@ import ingredientsRoutes from './routes/ingredients.routes';
 import recipesRoutes from './routes/recipes.routes';
 import mealPlansRoutes from './routes/mealPlans.routes';
 
+import { aiRateLimit } from './middlewares/aiRateLimit.middleware';
 import { notFoundMiddleware } from './middlewares/notFound.middleware';
 import { errorMiddleware } from './middlewares/error.middleware';
 
@@ -37,16 +38,19 @@ app.use(
 
 app.use(
   '/api/ingredients',
+  aiRateLimit,
   ingredientsRoutes,
 );
 
 app.use(
   '/api/recipes',
+  aiRateLimit,
   recipesRoutes,
 );
 
 app.use(
   '/api/meal-plans',
+  aiRateLimit,
   mealPlansRoutes,
 );
 

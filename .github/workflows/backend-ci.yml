@@ -1,0 +1,36 @@
+name: FoodAI Backend CI
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  validate:
+    name: Typecheck, Test and Build
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: test
+      GEMINI_API_KEY: test-key-for-ci
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate backend (typecheck, tests, build)
+        run: npm run check
