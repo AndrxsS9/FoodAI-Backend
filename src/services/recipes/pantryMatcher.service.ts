@@ -1,5 +1,6 @@
 import type {
   GeneratedRecipe,
+  RecipeIngredient,
 } from '../../schemas/recipe.schema';
 
 import type {
@@ -7,6 +8,7 @@ import type {
 } from '../../schemas/ingredient.schema';
 
 import { prepareIngredientName } from '../../utils/ingredientIdentity';
+import { compareIngredientQuantities } from '../../utils/ingredientQuantity';
 
 function tokenize(name: string): string[] {
   if (!name) {
@@ -85,6 +87,39 @@ function ingredientNamesMatch(
   );
 }
 
+function isRecipeIngredientAvailable(
+  recipeIngredient: RecipeIngredient,
+  pantry: Ingredient[],
+): boolean {
+  const matchingPantryIngredients = pantry.filter(
+    (pantryIngredient) =>
+      ingredientNamesMatch(
+        recipeIngredient.name,
+        pantryIngredient.name,
+      ),
+  );
+
+  if (matchingPantryIngredients.length === 0) {
+    return false;
+  }
+
+  return matchingPantryIngredients.some(
+    (pantryIngredient) => {
+      const comparison = compareIngredientQuantities(
+        pantryIngredient.quantity,
+        pantryIngredient.unit,
+        recipeIngredient.quantity,
+        recipeIngredient.unit,
+      );
+
+      return (
+        comparison === 'sufficient' ||
+        comparison === 'unknown'
+      );
+    },
+  );
+}
+
 export interface PantryMatchResult {
   availableIngredients: GeneratedRecipe['ingredients'];
   missingIngredients: GeneratedRecipe['ingredients'];
@@ -101,15 +136,7 @@ export function matchRecipeWithPantry(
     [];
 
   for (const recipeIngredient of recipe.ingredients) {
-    const existsInPantry = pantry.some(
-      (pantryIngredient) =>
-        ingredientNamesMatch(
-          recipeIngredient.name,
-          pantryIngredient.name,
-        ),
-    );
-
-    if (existsInPantry) {
+    if (isRecipeIngredientAvailable(recipeIngredient, pantry)) {
       availableIngredients.push(recipeIngredient);
     } else {
       missingIngredients.push(recipeIngredient);

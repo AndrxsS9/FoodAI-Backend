@@ -39,7 +39,7 @@ function buildPantryIngredient(
 ): Ingredient {
   return {
     name,
-    quantity: 1,
+    quantity: 10,
     unit: 'unidad',
     needsReview: false,
     ...overrides,
@@ -859,6 +859,412 @@ describe('pantryMatcher.service - matchRecipeWithPantry', () => {
         'pan',
         'ajo',
       ]);
+    });
+  });
+
+  describe('Integración de cantidades y unidades en pantryMatcher', () => {
+    // Masa
+    it('1. 500 g disponibles / 300 g requeridos → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 300, unit: 'g' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 500, unit: 'g' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('arroz');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('2. 300 g / 500 g → faltante', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 500, unit: 'g' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 300, unit: 'g' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('arroz');
+    });
+
+    it('3. 1 kg / 500 g → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 500, unit: 'g' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 1, unit: 'kg' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('arroz');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('4. 0.25 kg / 500 g → faltante', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 500, unit: 'g' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 0.25, unit: 'kg' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('arroz');
+    });
+
+    // Volumen
+    it('5. 1500 ml / 1 l → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'leche', quantity: 1, unit: 'l' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('leche', { quantity: 1500, unit: 'ml' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('leche');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('6. 500 ml / 1 l → faltante', () => {
+      const recipe = buildRecipe([
+        { name: 'leche', quantity: 1, unit: 'l' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('leche', { quantity: 500, unit: 'ml' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('leche');
+    });
+
+    it('7. 2 l / 1500 ml → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'leche', quantity: 1500, unit: 'ml' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('leche', { quantity: 2, unit: 'l' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('leche');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    // Unidades
+    it('8. 4 unidad / 3 unidad → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'huevo', quantity: 3, unit: 'unidad' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('huevo', { quantity: 4, unit: 'unidad' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('huevo');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('9. 2 unidad / 3 unidad → faltante', () => {
+      const recipe = buildRecipe([
+        { name: 'huevo', quantity: 3, unit: 'unidad' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('huevo', { quantity: 2, unit: 'unidad' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('huevo');
+    });
+
+    // Unknown preserva disponibilidad
+    it('10. quantity null → conservar disponibilidad por nombre', () => {
+      const recipe = buildRecipe([
+        { name: 'sal', quantity: null, unit: 'desconocida' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('sal', { quantity: null, unit: 'desconocida' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('sal');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('11. unit desconocida → conservar disponibilidad por nombre', () => {
+      const recipe = buildRecipe([
+        { name: 'pimienta', quantity: 5, unit: 'desconocida' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('pimienta', { quantity: 1, unit: 'desconocida' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('pimienta');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('12. taza → conservar disponibilidad por nombre', () => {
+      const recipe = buildRecipe([
+        { name: 'harina', quantity: 2, unit: 'taza' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('harina', { quantity: 500, unit: 'g' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('harina');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('13. cucharada → conservar disponibilidad por nombre', () => {
+      const recipe = buildRecipe([
+        { name: 'aceite', quantity: 2, unit: 'cucharada' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('aceite', { quantity: 500, unit: 'ml' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('aceite');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('14. cucharadita → conservar disponibilidad por nombre', () => {
+      const recipe = buildRecipe([
+        { name: 'vainilla', quantity: 1, unit: 'cucharadita' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('vainilla', { quantity: 50, unit: 'ml' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('vainilla');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('15. unidades incompatibles → conservar disponibilidad por nombre', () => {
+      const recipe = buildRecipe([
+        { name: 'leche', quantity: 500, unit: 'ml' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('leche', { quantity: 1, unit: 'unidad' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('leche');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    // Aliases y plurales con cantidades
+    it('16. alias + cantidad suficiente: patatas 5 unidad / papa 3 unidad → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'papa', quantity: 3, unit: 'unidad' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('patatas', { quantity: 5, unit: 'unidad' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('papa');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('17. alias + cantidad insuficiente: patatas 2 unidad / papa 3 unidad → faltante', () => {
+      const recipe = buildRecipe([
+        { name: 'papa', quantity: 3, unit: 'unidad' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('patatas', { quantity: 2, unit: 'unidad' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('papa');
+    });
+
+    it('18. plural + cantidad insuficiente: tomates 1 / tomate 2 → faltante', () => {
+      const recipe = buildRecipe([
+        { name: 'tomate', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('tomates', { quantity: 1, unit: 'unidad' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('tomate');
+    });
+
+    it('19. nombre distinto sigue faltante aunque la cantidad sea suficiente', () => {
+      const recipe = buildRecipe([
+        { name: 'pollo', quantity: 200, unit: 'g' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 1000, unit: 'g' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('pollo');
+    });
+
+    it('20. falsos positivos anteriores siguen rechazados', () => {
+      const recipe = buildRecipe([
+        { name: 'sal', quantity: 100, unit: 'g' },
+        { name: 'pan', quantity: 2, unit: 'unidad' },
+        { name: 'ajo', quantity: 1, unit: 'unidad' },
+        { name: 'papa', quantity: 500, unit: 'g' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('salsa', { quantity: 500, unit: 'g' }),
+        buildPantryIngredient('panela', { quantity: 5, unit: 'unidad' }),
+        buildPantryIngredient('bajo', { quantity: 5, unit: 'unidad' }),
+        buildPantryIngredient('papaya', { quantity: 1000, unit: 'g' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(4);
+      expect(result.missingIngredients.map((i) => i.name)).toEqual([
+        'sal',
+        'pan',
+        'ajo',
+        'papa',
+      ]);
+    });
+
+    // Múltiples coincidencias
+    it('21. múltiples coincidencias: una insuficiente y otra suficiente → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 500, unit: 'g' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 200, unit: 'g' }),
+        buildPantryIngredient('arroz', { quantity: 600, unit: 'g' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('arroz');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('22. múltiples coincidencias: una insuficiente y otra unknown → disponible', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 500, unit: 'g' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 200, unit: 'g' }),
+        buildPantryIngredient('arroz', { quantity: null, unit: 'desconocida' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('arroz');
+      expect(result.missingIngredients).toHaveLength(0);
+    });
+
+    it('23. múltiples coincidencias: todas insuficientes → faltante', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 500, unit: 'g' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 200, unit: 'g' }),
+        buildPantryIngredient('arroz', { quantity: 250, unit: 'g' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('arroz');
+    });
+
+    it('24. NO sumar todavía dos cantidades insuficientes (arroz 300g + 300g vs receta 500g → faltante)', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 500, unit: 'g' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 300, unit: 'g' }),
+        buildPantryIngredient('arroz', { quantity: 300, unit: 'g' }),
+      ];
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(result.availableIngredients).toHaveLength(0);
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('arroz');
+    });
+
+    it('25. inmutabilidad de recipe y pantry', () => {
+      const recipe = buildRecipe([
+        { name: 'arroz', quantity: 500, unit: 'g' },
+        { name: 'huevo', quantity: 2, unit: 'unidad' },
+      ]);
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 1, unit: 'kg' }),
+        buildPantryIngredient('huevo', { quantity: 1, unit: 'unidad' }),
+      ];
+
+      const recipeClone = structuredClone(recipe);
+      const pantryClone = structuredClone(pantry);
+
+      const result = matchRecipeWithPantry(recipe, pantry);
+
+      expect(recipe).toEqual(recipeClone);
+      expect(pantry).toEqual(pantryClone);
+      expect(result.availableIngredients).toHaveLength(1);
+      expect(result.availableIngredients[0].name).toBe('arroz');
+      expect(result.missingIngredients).toHaveLength(1);
+      expect(result.missingIngredients[0].name).toBe('huevo');
     });
   });
 });

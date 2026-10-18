@@ -37,7 +37,7 @@ function buildPantryIngredient(
 ): Ingredient {
   return {
     name,
-    quantity: 1,
+    quantity: 10,
     unit: 'unidad',
     needsReview: false,
     ...overrides,
