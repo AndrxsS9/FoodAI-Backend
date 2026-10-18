@@ -1,3 +1,4 @@
+import { classifyGeminiError } from './geminiError';
 import { geminiClient } from './gemini.client';
 
 import {
@@ -86,16 +87,9 @@ export async function generateRecipeRecommendations(
       throw error;
     }
 
-    const geminiError = error as {
-      status?: number;
-      statusCode?: number;
-    };
+    const errorKind = classifyGeminiError(error);
 
-    const status =
-      geminiError.status ??
-      geminiError.statusCode;
-
-    if (status === 429) {
+    if (errorKind === 'rate_limit') {
       console.warn(
         '⚠️ Gemini alcanzó el límite de solicitudes al generar recetas.',
       );
@@ -107,7 +101,7 @@ export async function generateRecipeRecommendations(
       );
     }
 
-    if (status === 503) {
+    if (errorKind === 'unavailable') {
       console.warn(
         '⚠️ Gemini no está disponible temporalmente para generar recetas.',
       );

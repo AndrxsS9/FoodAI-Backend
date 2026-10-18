@@ -1,3 +1,4 @@
+import { classifyGeminiError } from './geminiError';
 import { geminiClient } from './gemini.client';
 
 import {
@@ -90,23 +91,12 @@ export async function analyzeIngredientsFromImage({
       throw error;
     }
 
-    /*
-     * Los errores del SDK de Gemini pueden contener
-     * status o statusCode.
-     */
-    const geminiError = error as {
-      status?: number;
-      statusCode?: number;
-    };
-
-    const status =
-      geminiError.status ??
-      geminiError.statusCode;
+    const errorKind = classifyGeminiError(error);
 
     /*
      * Límite de solicitudes / cuota agotada.
      */
-    if (status === 429) {
+    if (errorKind === 'rate_limit') {
       console.warn(
         '⚠️ Gemini alcanzó el límite de solicitudes.',
       );
@@ -121,7 +111,7 @@ export async function analyzeIngredientsFromImage({
     /*
      * Gemini temporalmente saturado o no disponible.
      */
-    if (status === 503) {
+    if (errorKind === 'unavailable') {
       console.warn(
         '⚠️ Gemini está temporalmente no disponible.',
       );
