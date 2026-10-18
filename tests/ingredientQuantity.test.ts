@@ -5,6 +5,7 @@ import {
 } from 'vitest';
 
 import {
+  compareIngredientQuantities,
   normalizeIngredientQuantity,
 } from '../src/utils/ingredientQuantity';
 
@@ -161,5 +162,154 @@ describe('ingredientQuantity utility - normalizeIngredientQuantity', () => {
     expect(normalizeIngredientQuantity(100, '')).toBeNull();
     expect(normalizeIngredientQuantity(100, 'gramos')).toBeNull();
     expect(normalizeIngredientQuantity(100, 'piezas')).toBeNull();
+  });
+});
+
+describe('ingredientQuantity utility - compareIngredientQuantities', () => {
+  // Masa
+  it('1. 500 g vs 300 g → sufficient', () => {
+    expect(compareIngredientQuantities(500, 'g', 300, 'g')).toBe('sufficient');
+  });
+
+  it('2. 500 g vs 500 g → sufficient', () => {
+    expect(compareIngredientQuantities(500, 'g', 500, 'g')).toBe('sufficient');
+  });
+
+  it('3. 300 g vs 500 g → insufficient', () => {
+    expect(compareIngredientQuantities(300, 'g', 500, 'g')).toBe('insufficient');
+  });
+
+  it('4. 1 kg vs 500 g → sufficient', () => {
+    expect(compareIngredientQuantities(1, 'kg', 500, 'g')).toBe('sufficient');
+  });
+
+  it('5. 0.25 kg vs 500 g → insufficient', () => {
+    expect(compareIngredientQuantities(0.25, 'kg', 500, 'g')).toBe('insufficient');
+  });
+
+  it('6. 500 g vs 0.5 kg → sufficient', () => {
+    expect(compareIngredientQuantities(500, 'g', 0.5, 'kg')).toBe('sufficient');
+  });
+
+  // Volumen
+  it('7. 1500 ml vs 1 l → sufficient', () => {
+    expect(compareIngredientQuantities(1500, 'ml', 1, 'l')).toBe('sufficient');
+  });
+
+  it('8. 500 ml vs 1 l → insufficient', () => {
+    expect(compareIngredientQuantities(500, 'ml', 1, 'l')).toBe('insufficient');
+  });
+
+  it('9. 2 l vs 1500 ml → sufficient', () => {
+    expect(compareIngredientQuantities(2, 'l', 1500, 'ml')).toBe('sufficient');
+  });
+
+  // Conteo
+  it('10. 3 unidad vs 2 unidad → sufficient', () => {
+    expect(compareIngredientQuantities(3, 'unidad', 2, 'unidad')).toBe('sufficient');
+  });
+
+  it('11. 1 unidad vs 2 unidad → insufficient', () => {
+    expect(compareIngredientQuantities(1, 'unidad', 2, 'unidad')).toBe('insufficient');
+  });
+
+  // Casos unknown por valores nulos / inválidos
+  it('12. available quantity null → unknown', () => {
+    expect(compareIngredientQuantities(null, 'g', 500, 'g')).toBe('unknown');
+  });
+
+  it('13. required quantity null → unknown', () => {
+    expect(compareIngredientQuantities(500, 'g', null, 'g')).toBe('unknown');
+  });
+
+  it('14. available desconocida → unknown', () => {
+    expect(compareIngredientQuantities(500, 'desconocida', 500, 'g')).toBe('unknown');
+  });
+
+  it('15. required desconocida → unknown', () => {
+    expect(compareIngredientQuantities(500, 'g', 500, 'desconocida')).toBe('unknown');
+  });
+
+  // Unidades de cocina
+  it('16. taza → unknown', () => {
+    expect(compareIngredientQuantities(2, 'taza', 500, 'g')).toBe('unknown');
+    expect(compareIngredientQuantities(500, 'g', 2, 'taza')).toBe('unknown');
+  });
+
+  it('17. cucharada → unknown', () => {
+    expect(compareIngredientQuantities(1, 'cucharada', 15, 'ml')).toBe('unknown');
+    expect(compareIngredientQuantities(15, 'ml', 1, 'cucharada')).toBe('unknown');
+  });
+
+  it('18. cucharadita → unknown', () => {
+    expect(compareIngredientQuantities(1, 'cucharadita', 5, 'ml')).toBe('unknown');
+    expect(compareIngredientQuantities(5, 'ml', 1, 'cucharadita')).toBe('unknown');
+  });
+
+  // Familias incompatibles (sin asunción de densidades)
+  it('19. g vs ml → unknown', () => {
+    expect(compareIngredientQuantities(500, 'g', 250, 'ml')).toBe('unknown');
+    expect(compareIngredientQuantities(250, 'ml', 500, 'g')).toBe('unknown');
+  });
+
+  it('20. kg vs l → unknown', () => {
+    expect(compareIngredientQuantities(1, 'kg', 1, 'l')).toBe('unknown');
+    expect(compareIngredientQuantities(1, 'l', 1, 'kg')).toBe('unknown');
+  });
+
+  it('21. unidad vs g → unknown', () => {
+    expect(compareIngredientQuantities(3, 'unidad', 500, 'g')).toBe('unknown');
+    expect(compareIngredientQuantities(500, 'g', 3, 'unidad')).toBe('unknown');
+  });
+
+  it('22. unidad vs ml → unknown', () => {
+    expect(compareIngredientQuantities(3, 'unidad', 250, 'ml')).toBe('unknown');
+    expect(compareIngredientQuantities(250, 'ml', 3, 'unidad')).toBe('unknown');
+  });
+
+  // NaN / Infinity
+  it('23. NaN/Infinity en cualquiera de los lados → unknown', () => {
+    expect(compareIngredientQuantities(NaN, 'g', 500, 'g')).toBe('unknown');
+    expect(compareIngredientQuantities(500, 'g', NaN, 'g')).toBe('unknown');
+    expect(compareIngredientQuantities(Infinity, 'g', 500, 'g')).toBe('unknown');
+    expect(compareIngredientQuantities(500, 'g', Infinity, 'g')).toBe('unknown');
+    expect(compareIngredientQuantities(-Infinity, 'g', 500, 'g')).toBe('unknown');
+    expect(compareIngredientQuantities(500, 'g', -Infinity, 'g')).toBe('unknown');
+  });
+
+  // Precisión decimal sin redondeo artificial
+  it('24. precisión decimal sin redondeo artificial', () => {
+    expect(compareIngredientQuantities(499.999, 'g', 500, 'g')).toBe('insufficient');
+    expect(compareIngredientQuantities(500.001, 'g', 500, 'g')).toBe('sufficient');
+    expect(compareIngredientQuantities(0.4999, 'kg', 500, 'g')).toBe('insufficient');
+    expect(compareIngredientQuantities(0.5001, 'kg', 500, 'g')).toBe('sufficient');
+  });
+
+  // No mutar datos externos
+  it('25. no mutar datos externos', () => {
+    const available = { quantity: 1, unit: 'kg' as const };
+    const required = { quantity: 500, unit: 'g' as const };
+    const frozenAvailable = Object.freeze({ quantity: 1, unit: 'kg' as const });
+    const frozenRequired = Object.freeze({ quantity: 500, unit: 'g' as const });
+
+    const result = compareIngredientQuantities(
+      available.quantity,
+      available.unit,
+      required.quantity,
+      required.unit,
+    );
+    const frozenResult = compareIngredientQuantities(
+      frozenAvailable.quantity,
+      frozenAvailable.unit,
+      frozenRequired.quantity,
+      frozenRequired.unit,
+    );
+
+    expect(available.quantity).toBe(1);
+    expect(available.unit).toBe('kg');
+    expect(required.quantity).toBe(500);
+    expect(required.unit).toBe('g');
+    expect(result).toBe('sufficient');
+    expect(frozenResult).toBe('sufficient');
   });
 });

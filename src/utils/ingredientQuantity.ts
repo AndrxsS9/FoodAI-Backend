@@ -63,3 +63,37 @@ export function normalizeIngredientQuantity(
       return null;
   }
 }
+
+export type IngredientQuantityComparison =
+  | 'sufficient'
+  | 'insufficient'
+  | 'unknown';
+
+export function compareIngredientQuantities(
+  availableQuantity: number | null | undefined,
+  availableUnit: IngredientUnit | string | null | undefined,
+  requiredQuantity: number | null | undefined,
+  requiredUnit: IngredientUnit | string | null | undefined,
+): IngredientQuantityComparison {
+  const normalizedAvailable = normalizeIngredientQuantity(
+    availableQuantity,
+    availableUnit,
+  );
+
+  const normalizedRequired = normalizeIngredientQuantity(
+    requiredQuantity,
+    requiredUnit,
+  );
+
+  if (!normalizedAvailable || !normalizedRequired) {
+    return 'unknown';
+  }
+
+  if (normalizedAvailable.unit !== normalizedRequired.unit) {
+    return 'unknown';
+  }
+
+  return normalizedAvailable.quantity >= normalizedRequired.quantity
+    ? 'sufficient'
+    : 'insufficient';
+}
