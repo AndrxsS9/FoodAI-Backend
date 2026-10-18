@@ -37,7 +37,7 @@ function buildPantryIngredient(
 ): Ingredient {
   return {
     name,
-    quantity: 1,
+    quantity: 10,
     unit: 'unidad',
     needsReview: false,
     ...overrides,
@@ -806,6 +806,583 @@ describe('recommendation.service - buildRecipeRecommendations', () => {
         recipes: [
           buildGeneratedRecipe('Ensalada', [
             { name: 'aguacate', quantity: 1, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      await buildRecipeRecommendations(request);
+
+      expect(mockedGenerateRecipeRecommendations).toHaveBeenCalledTimes(1);
+      expect(mockedGenerateRecipeRecommendations).toHaveBeenCalledWith(request);
+    });
+  });
+
+  describe('Integración de gestión de cantidades y unidades en recomendaciones', () => {
+    it('1. cantidad suficiente misma unidad (arroz 500 g vs 300 g)', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 500, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Arroz blanco', [
+            { name: 'arroz', quantity: 300, unit: 'g' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes).toHaveLength(1);
+      const [rec] = response.recipes;
+      expect(rec.availableIngredients).toHaveLength(1);
+      expect(rec.availableIngredients[0].name).toBe('arroz');
+      expect(rec.missingIngredients).toHaveLength(0);
+      expect(rec.estimatedMissingCost).toBe(0);
+      expect(rec.budgetRemaining).toBe(20000);
+      expect(rec.withinBudget).toBe(true);
+    });
+
+    it('2. cantidad insuficiente (arroz 300 g vs 500 g)', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 300, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Arroz blanco', [
+            { name: 'arroz', quantity: 500, unit: 'g' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes).toHaveLength(1);
+      const [rec] = response.recipes;
+      expect(rec.availableIngredients).toHaveLength(0);
+      expect(rec.missingIngredients).toHaveLength(1);
+      expect(rec.missingIngredients[0].name).toBe('arroz');
+      expect(rec.estimatedMissingCost).toBe(3500);
+      expect(rec.budgetRemaining).toBe(16500);
+      expect(rec.withinBudget).toBe(true);
+      expect(rec.convenience).toBeLessThan(95);
+    });
+
+    it('3. conversión kg → g suficiente (arroz 1 kg vs 500 g)', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 1, unit: 'kg' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Arroz', [
+            { name: 'arroz', quantity: 500, unit: 'g' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients).toHaveLength(0);
+      expect(response.recipes[0].estimatedMissingCost).toBe(0);
+    });
+
+    it('4. conversión kg → g insuficiente (arroz 0.25 kg vs 500 g)', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 0.25, unit: 'kg' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Arroz', [
+            { name: 'arroz', quantity: 500, unit: 'g' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(0);
+      expect(response.recipes[0].missingIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients[0].name).toBe('arroz');
+      expect(response.recipes[0].estimatedMissingCost).toBe(3500);
+    });
+
+    it('5. volumen l/ml suficiente (leche 1.5 l vs 1000 ml)', async () => {
+      const pantry = [
+        buildPantryIngredient('leche', { quantity: 1.5, unit: 'l' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Leche tibia', [
+            { name: 'leche', quantity: 1000, unit: 'ml' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients).toHaveLength(0);
+      expect(response.recipes[0].estimatedMissingCost).toBe(0);
+    });
+
+    it('6. volumen insuficiente (leche 500 ml vs 1 l)', async () => {
+      const pantry = [
+        buildPantryIngredient('leche', { quantity: 500, unit: 'ml' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Leche', [
+            { name: 'leche', quantity: 1, unit: 'l' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(0);
+      expect(response.recipes[0].missingIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients[0].name).toBe('leche');
+      expect(response.recipes[0].estimatedMissingCost).toBe(4500);
+    });
+
+    it('7. unidades suficientes (huevo 4 unidad vs 3 unidad)', async () => {
+      const pantry = [
+        buildPantryIngredient('huevo', { quantity: 4, unit: 'unidad' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Huevos cocidos', [
+            { name: 'huevo', quantity: 3, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients).toHaveLength(0);
+      expect(response.recipes[0].estimatedMissingCost).toBe(0);
+    });
+
+    it('8. unidades insuficientes (huevo 2 unidad vs 3 unidad)', async () => {
+      const pantry = [
+        buildPantryIngredient('huevo', { quantity: 2, unit: 'unidad' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Huevos cocidos', [
+            { name: 'huevo', quantity: 3, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(0);
+      expect(response.recipes[0].missingIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients[0].name).toBe('huevo');
+      expect(response.recipes[0].estimatedMissingCost).toBe(800);
+    });
+
+    it('9. acumulación de masa suficiente (arroz 300 g + 300 g vs 500 g)', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 300, unit: 'g' }),
+        buildPantryIngredient('arroz', { quantity: 300, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Arroz', [
+            { name: 'arroz', quantity: 500, unit: 'g' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients).toHaveLength(0);
+      expect(response.recipes[0].estimatedMissingCost).toBe(0);
+    });
+
+    it('10. acumulación de masa insuficiente (arroz 200 g + 200 g vs 500 g)', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 200, unit: 'g' }),
+        buildPantryIngredient('arroz', { quantity: 200, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Arroz', [
+            { name: 'arroz', quantity: 500, unit: 'g' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(0);
+      expect(response.recipes[0].missingIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients[0].name).toBe('arroz');
+      expect(response.recipes[0].estimatedMissingCost).toBe(3500);
+    });
+
+    it('11. acumulación con conversión kg/g (arroz 0.25 kg + 300 g vs 500 g)', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 0.25, unit: 'kg' }),
+        buildPantryIngredient('arroz', { quantity: 300, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Arroz', [
+            { name: 'arroz', quantity: 500, unit: 'g' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients).toHaveLength(0);
+      expect(response.recipes[0].estimatedMissingCost).toBe(0);
+    });
+
+    it('12. alias + cantidad suficiente (patatas 4 unidad vs papa 3 unidad)', async () => {
+      const pantry = [
+        buildPantryIngredient('patatas', { quantity: 4, unit: 'unidad' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Papas cocidas', [
+            { name: 'papa', quantity: 3, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients).toHaveLength(0);
+      expect(response.recipes[0].estimatedMissingCost).toBe(0);
+    });
+
+    it('13. alias + cantidad insuficiente (patatas 2 unidad vs papa 3 unidad)', async () => {
+      const pantry = [
+        buildPantryIngredient('patatas', { quantity: 2, unit: 'unidad' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Papas cocidas', [
+            { name: 'papa', quantity: 3, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(0);
+      expect(response.recipes[0].missingIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients[0].name).toBe('papa');
+      expect(response.recipes[0].estimatedMissingCost).toBe(2500);
+    });
+
+    it('14. alias + suma acumulada (patata 1 unidad + papas 2 unidad vs papa 3 unidad)', async () => {
+      const pantry = [
+        buildPantryIngredient('patata', { quantity: 1, unit: 'unidad' }),
+        buildPantryIngredient('papas', { quantity: 2, unit: 'unidad' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Papas cocidas', [
+            { name: 'papa', quantity: 3, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients).toHaveLength(0);
+      expect(response.recipes[0].estimatedMissingCost).toBe(0);
+    });
+
+    it('15. unknown conserva disponibilidad por política conservadora (harina null/desconocida vs 500 g)', async () => {
+      const pantry = [
+        buildPantryIngredient('harina', { quantity: null, unit: 'desconocida' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Pan', [
+            { name: 'harina', quantity: 500, unit: 'g' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients).toHaveLength(0);
+      expect(response.recipes[0].estimatedMissingCost).toBe(0);
+    });
+
+    it('16. unidades incompatibles conservan disponibilidad por política unknown (leche 1 unidad vs 500 ml)', async () => {
+      const pantry = [
+        buildPantryIngredient('leche', { quantity: 1, unit: 'unidad' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Batido', [
+            { name: 'leche', quantity: 500, unit: 'ml' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients).toHaveLength(0);
+      expect(response.recipes[0].estimatedMissingCost).toBe(0);
+    });
+
+    it('17. unidad de cocina no convertible conserva disponibilidad (harina 500 g vs 2 taza)', async () => {
+      const pantry = [
+        buildPantryIngredient('harina', { quantity: 500, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Torta', [
+            { name: 'harina', quantity: 2, unit: 'taza' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients).toHaveLength(0);
+      expect(response.recipes[0].estimatedMissingCost).toBe(0);
+    });
+
+    it('18. falso positivo no confunde coincidencia y permanece faltante (salsa 1000 g vs sal 100 g)', async () => {
+      const pantry = [
+        buildPantryIngredient('salsa', { quantity: 1000, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Comida', [
+            { name: 'sal', quantity: 100, unit: 'g' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes[0].availableIngredients).toHaveLength(0);
+      expect(response.recipes[0].missingIngredients).toHaveLength(1);
+      expect(response.recipes[0].missingIngredients[0].name).toBe('sal');
+      expect(response.recipes[0].estimatedMissingCost).toBe(1500);
+    });
+
+    it('19. mezcla completa de disponibilidad, conversiones, sumas, aliases y faltantes', async () => {
+      const pantry = [
+        buildPantryIngredient('huevo', { quantity: 4, unit: 'unidad' }),
+        buildPantryIngredient('arroz', { quantity: 1, unit: 'kg' }),
+        buildPantryIngredient('leche', { quantity: 500, unit: 'ml' }),
+        buildPantryIngredient('leche', { quantity: 750, unit: 'ml' }),
+        buildPantryIngredient('patatas', { quantity: 4, unit: 'unidad' }),
+        buildPantryIngredient('queso', { quantity: 200, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      const candidateRecipe = buildGeneratedRecipe('Banquete completo', [
+        { name: 'huevo', quantity: 2, unit: 'unidad' },
+        { name: 'arroz', quantity: 500, unit: 'g' },
+        { name: 'leche', quantity: 1, unit: 'l' },
+        { name: 'papa', quantity: 3, unit: 'unidad' },
+        { name: 'queso', quantity: 500, unit: 'g' },
+        { name: 'pollo', quantity: 300, unit: 'g' },
+      ]);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [candidateRecipe],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes).toHaveLength(1);
+      const [rec] = response.recipes;
+
+      expect(rec.availableIngredients.map((i) => i.name)).toEqual([
+        'huevo',
+        'arroz',
+        'leche',
+        'papa',
+      ]);
+      expect(rec.missingIngredients.map((i) => i.name)).toEqual([
+        'queso',
+        'pollo',
+      ]);
+      expect(rec.estimatedMissingCost).toBe(15500);
+      expect(rec.budgetRemaining).toBe(4500);
+      expect(rec.withinBudget).toBe(true);
+      expect(rec.convenience).toBe(53);
+    });
+
+    it('20. comparación de conveniencia y ordenamiento: receta con cantidades cubiertas vs insuficiente', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 1000, unit: 'g' }),
+        buildPantryIngredient('huevo', { quantity: 10, unit: 'unidad' }),
+      ];
+      const request = buildRequest(pantry, { budget: 20000 });
+
+      const recetaA = buildGeneratedRecipe('Receta Disponible', [
+        { name: 'arroz', quantity: 300, unit: 'g' },
+        { name: 'huevo', quantity: 2, unit: 'unidad' },
+      ]);
+
+      const recetaB = buildGeneratedRecipe('Receta Insuficiente', [
+        { name: 'arroz', quantity: 2000, unit: 'g' },
+        { name: 'huevo', quantity: 2, unit: 'unidad' },
+      ]);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [recetaB, recetaA],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes).toHaveLength(2);
+      expect(response.recipes[0].name).toBe('Receta Disponible');
+      expect(response.recipes[1].name).toBe('Receta Insuficiente');
+      expect(response.recipes[0].convenience).toBeGreaterThan(
+        response.recipes[1].convenience,
+      );
+    });
+
+    it('21. presupuesto insuficiente: cantidad faltante supera presupuesto (withinBudget false, budgetRemaining negativo)', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 200, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry, { budget: 2000 });
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Arroz con leche', [
+            { name: 'arroz', quantity: 500, unit: 'g' },
+          ]),
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      expect(response.recipes).toHaveLength(1);
+      const [rec] = response.recipes;
+      expect(rec.missingIngredients).toHaveLength(1);
+      expect(rec.estimatedMissingCost).toBe(3500);
+      expect(rec.withinBudget).toBe(false);
+      expect(rec.budgetRemaining).toBe(-1500);
+    });
+
+    it('22. input inmutable: buildRecipeRecommendations no modifica pantry, cantidades ni request', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 500, unit: 'g' }),
+        buildPantryIngredient('huevo', { quantity: 4, unit: 'unidad' }),
+      ];
+      const request = buildRequest(pantry, {
+        budget: 15000,
+        servings: 4,
+        maxMinutes: 45,
+      });
+      const requestSnapshot = structuredClone(request);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Arroz frito', [
+            { name: 'arroz', quantity: 300, unit: 'g' },
+            { name: 'huevo', quantity: 2, unit: 'unidad' },
+          ]),
+        ],
+      });
+
+      await buildRecipeRecommendations(request);
+
+      expect(request).toEqual(requestSnapshot);
+    });
+
+    it('23. receta generada inmutable: conserva campos originales generados por Gemini mock', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 500, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry);
+
+      const candidateRecipe: GeneratedRecipe = {
+        name: 'Arroz especial',
+        description: 'Descripción detallada',
+        totalMinutes: 25,
+        steps: ['Paso 1: Lavar arroz', 'Paso 2: Cocer'],
+        ingredients: [
+          { name: 'arroz', quantity: 300, unit: 'g' },
+        ],
+      };
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [candidateRecipe],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+
+      const [rec] = response.recipes;
+      expect(rec.name).toBe(candidateRecipe.name);
+      expect(rec.description).toBe(candidateRecipe.description);
+      expect(rec.totalMinutes).toBe(candidateRecipe.totalMinutes);
+      expect(rec.steps).toEqual(candidateRecipe.steps);
+      expect(rec.ingredients).toEqual(candidateRecipe.ingredients);
+    });
+
+    it('24. Gemini mock: generateRecipeRecommendations es llamado exactamente una vez', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 500, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          buildGeneratedRecipe('Arroz simple', [
+            { name: 'arroz', quantity: 200, unit: 'g' },
           ]),
         ],
       });
