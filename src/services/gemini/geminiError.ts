@@ -1,6 +1,9 @@
+import { GeminiTimeoutError } from './geminiTimeout';
+
 export type GeminiErrorKind =
   | 'rate_limit'
   | 'unavailable'
+  | 'timeout'
   | 'unknown';
 
 export function getGeminiErrorStatus(
@@ -29,6 +32,15 @@ export function getGeminiErrorStatus(
 export function classifyGeminiError(
   error: unknown,
 ): GeminiErrorKind {
+  if (
+    error instanceof GeminiTimeoutError ||
+    (typeof error === 'object' &&
+      error !== null &&
+      (error as { name?: unknown }).name === 'GeminiTimeoutError')
+  ) {
+    return 'timeout';
+  }
+
   const status = getGeminiErrorStatus(error);
 
   if (status === 429) {
