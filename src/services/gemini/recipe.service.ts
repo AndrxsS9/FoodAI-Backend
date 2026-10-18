@@ -1,4 +1,5 @@
 import { classifyGeminiError } from './geminiError';
+import { executeGeminiRequest } from './geminiRequest';
 import { geminiClient } from './gemini.client';
 
 import {
@@ -23,8 +24,8 @@ export async function generateRecipeRecommendations(
   });
 
   try {
-    const interaction =
-      await geminiClient.interactions.create({
+    const interaction = await executeGeminiRequest(() =>
+      geminiClient.interactions.create({
         model: 'gemini-3.8-flash',
 
         input: [
@@ -39,7 +40,8 @@ export async function generateRecipeRecommendations(
           mime_type: 'application/json',
           schema: generatedRecipesJsonSchema,
         },
-      });
+      }),
+    );
 
     if (!interaction.output_text) {
       throw new AppError(
@@ -110,6 +112,18 @@ export async function generateRecipeRecommendations(
         'El servicio de generación de recetas está temporalmente ocupado. Intenta nuevamente más tarde.',
         503,
         'GEMINI_UNAVAILABLE',
+      );
+    }
+
+    if (errorKind === 'timeout') {
+      console.warn(
+        '⚠️ Gemini tardó demasiado en responder al generar recetas.',
+      );
+
+      throw new AppError(
+        'El servicio de generación de recetas tardó demasiado en responder. Intenta nuevamente.',
+        504,
+        'GEMINI_TIMEOUT',
       );
     }
 
