@@ -8,7 +8,10 @@ import type {
 } from '../../schemas/ingredient.schema';
 
 import { prepareIngredientName } from '../../utils/ingredientIdentity';
-import { compareIngredientQuantities } from '../../utils/ingredientQuantity';
+import {
+  compareIngredientQuantities,
+  sumCompatibleIngredientQuantities,
+} from '../../utils/ingredientQuantity';
 
 function tokenize(name: string): string[] {
   if (!name) {
@@ -103,21 +106,41 @@ function isRecipeIngredientAvailable(
     return false;
   }
 
-  return matchingPantryIngredients.some(
-    (pantryIngredient) => {
-      const comparison = compareIngredientQuantities(
+  const individualComparisons = matchingPantryIngredients.map(
+    (pantryIngredient) =>
+      compareIngredientQuantities(
         pantryIngredient.quantity,
         pantryIngredient.unit,
         recipeIngredient.quantity,
         recipeIngredient.unit,
-      );
-
-      return (
-        comparison === 'sufficient' ||
-        comparison === 'unknown'
-      );
-    },
+      ),
   );
+
+  if (individualComparisons.includes('sufficient')) {
+    return true;
+  }
+
+  if (individualComparisons.includes('unknown')) {
+    return true;
+  }
+
+  const aggregatedAvailable =
+    sumCompatibleIngredientQuantities(
+      matchingPantryIngredients,
+    );
+
+  if (!aggregatedAvailable) {
+    return false;
+  }
+
+  const comparisonWithTotal = compareIngredientQuantities(
+    aggregatedAvailable.quantity,
+    aggregatedAvailable.unit,
+    recipeIngredient.quantity,
+    recipeIngredient.unit,
+  );
+
+  return comparisonWithTotal === 'sufficient';
 }
 
 export interface PantryMatchResult {

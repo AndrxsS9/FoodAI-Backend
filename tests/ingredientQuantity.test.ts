@@ -7,6 +7,7 @@ import {
 import {
   compareIngredientQuantities,
   normalizeIngredientQuantity,
+  sumCompatibleIngredientQuantities,
 } from '../src/utils/ingredientQuantity';
 
 describe('ingredientQuantity utility - normalizeIngredientQuantity', () => {
@@ -311,5 +312,200 @@ describe('ingredientQuantity utility - compareIngredientQuantities', () => {
     expect(required.unit).toBe('g');
     expect(result).toBe('sufficient');
     expect(frozenResult).toBe('sufficient');
+  });
+});
+
+describe('ingredientQuantity utility - sumCompatibleIngredientQuantities', () => {
+  it('1. 300 g + 300 g → 600 g', () => {
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 300, unit: 'g' },
+        { quantity: 300, unit: 'g' },
+      ]),
+    ).toEqual({
+      quantity: 600,
+      unit: 'g',
+    });
+  });
+
+  it('2. 0.25 kg + 300 g → 550 g', () => {
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 0.25, unit: 'kg' },
+        { quantity: 300, unit: 'g' },
+      ]),
+    ).toEqual({
+      quantity: 550,
+      unit: 'g',
+    });
+  });
+
+  it('3. 500 ml + 0.75 l → 1250 ml', () => {
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 500, unit: 'ml' },
+        { quantity: 0.75, unit: 'l' },
+      ]),
+    ).toEqual({
+      quantity: 1250,
+      unit: 'ml',
+    });
+  });
+
+  it('4. 2 unidad + 3 unidad → 5 unidad', () => {
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 2, unit: 'unidad' },
+        { quantity: 3, unit: 'unidad' },
+      ]),
+    ).toEqual({
+      quantity: 5,
+      unit: 'unidad',
+    });
+  });
+
+  it('5. lista vacía → null', () => {
+    expect(sumCompatibleIngredientQuantities([])).toBeNull();
+  });
+
+  it('6. una entrada no normalizable debe tratarse devolviendo null sin inventar cantidades', () => {
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 300, unit: 'g' },
+        { quantity: null, unit: 'g' },
+      ]),
+    ).toBeNull();
+
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 300, unit: 'g' },
+        { quantity: 100, unit: 'desconocida' },
+      ]),
+    ).toBeNull();
+
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 300, unit: 'g' },
+        { quantity: 1, unit: 'taza' },
+      ]),
+    ).toBeNull();
+
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 300, unit: 'g' },
+        { quantity: 1, unit: 'cucharada' },
+      ]),
+    ).toBeNull();
+
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 300, unit: 'g' },
+        { quantity: 0, unit: 'g' },
+      ]),
+    ).toBeNull();
+
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 300, unit: 'g' },
+        { quantity: -50, unit: 'g' },
+      ]),
+    ).toBeNull();
+
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 300, unit: 'g' },
+        { quantity: NaN, unit: 'g' },
+      ]),
+    ).toBeNull();
+  });
+
+  it('7. familias incompatibles no deben sumarse entre sí (devuelven null)', () => {
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 300, unit: 'g' },
+        { quantity: 300, unit: 'ml' },
+      ]),
+    ).toBeNull();
+
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 1, unit: 'kg' },
+        { quantity: 1, unit: 'l' },
+      ]),
+    ).toBeNull();
+
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 2, unit: 'unidad' },
+        { quantity: 100, unit: 'g' },
+      ]),
+    ).toBeNull();
+
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 2, unit: 'unidad' },
+        { quantity: 200, unit: 'ml' },
+      ]),
+    ).toBeNull();
+  });
+
+  it('8. precisión decimal sin redondeo artificial', () => {
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 249.999, unit: 'g' },
+        { quantity: 250, unit: 'g' },
+      ]),
+    ).toEqual({
+      quantity: 499.999,
+      unit: 'g',
+    });
+
+    expect(
+      sumCompatibleIngredientQuantities([
+        { quantity: 0.125, unit: 'kg' },
+        { quantity: 0.125, unit: 'kg' },
+      ]),
+    ).toEqual({
+      quantity: 250,
+      unit: 'g',
+    });
+  });
+
+  it('9. inmutabilidad: no mutar el array ni los objetos de entrada', () => {
+    const itemA = { quantity: 300, unit: 'g' as const };
+    const itemB = { quantity: 200, unit: 'g' as const };
+    const items = [itemA, itemB];
+
+    const frozenA = Object.freeze({ quantity: 300, unit: 'g' as const });
+    const frozenB = Object.freeze({ quantity: 200, unit: 'g' as const });
+    const frozenItems = Object.freeze([frozenA, frozenB]);
+
+    const result = sumCompatibleIngredientQuantities(items);
+    const frozenResult = sumCompatibleIngredientQuantities(
+      frozenItems as unknown as typeof items,
+    );
+
+    expect(items).toHaveLength(2);
+    expect(itemA.quantity).toBe(300);
+    expect(itemB.quantity).toBe(200);
+    expect(result).toEqual({ quantity: 500, unit: 'g' });
+    expect(frozenResult).toEqual({ quantity: 500, unit: 'g' });
+  });
+
+  it('10. elemento individual es retornado con su unidad base normalizada', () => {
+    expect(
+      sumCompatibleIngredientQuantities([{ quantity: 1, unit: 'kg' }]),
+    ).toEqual({
+      quantity: 1000,
+      unit: 'g',
+    });
+  });
+
+  it('11. entradas inválidas (null, undefined, no array) devuelven null', () => {
+    expect(sumCompatibleIngredientQuantities(null as any)).toBeNull();
+    expect(sumCompatibleIngredientQuantities(undefined as any)).toBeNull();
+    expect(
+      sumCompatibleIngredientQuantities([null as any]),
+    ).toBeNull();
   });
 });

@@ -97,3 +97,55 @@ export function compareIngredientQuantities(
     ? 'sufficient'
     : 'insufficient';
 }
+
+export interface IngredientQuantityItem {
+  quantity: number | null | undefined;
+  unit: IngredientUnit | string | null | undefined;
+}
+
+export function sumCompatibleIngredientQuantities(
+  items: IngredientQuantityItem[],
+): NormalizedIngredientQuantity | null {
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return null;
+  }
+
+  const normalizedItems: NormalizedIngredientQuantity[] = [];
+
+  for (const item of items) {
+    if (!item) {
+      return null;
+    }
+
+    const normalized = normalizeIngredientQuantity(
+      item.quantity,
+      item.unit,
+    );
+
+    if (!normalized) {
+      return null;
+    }
+
+    normalizedItems.push(normalized);
+  }
+
+  const baseUnit = normalizedItems[0].unit;
+
+  const allSameUnit = normalizedItems.every(
+    (normalized) => normalized.unit === baseUnit,
+  );
+
+  if (!allSameUnit) {
+    return null;
+  }
+
+  const totalQuantity = normalizedItems.reduce(
+    (sum, normalized) => sum + normalized.quantity,
+    0,
+  );
+
+  return {
+    quantity: totalQuantity,
+    unit: baseUnit,
+  };
+}
