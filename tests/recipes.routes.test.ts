@@ -353,4 +353,29 @@ describe('POST /api/recipes/recommend', () => {
       },
     });
   });
+
+  it('debe manejar cuando Gemini excede el tiempo límite (504 GEMINI_TIMEOUT)', async () => {
+    mockedGenerateRecipes.mockRejectedValue(
+      new AppError(
+        'El servicio de generación de recetas tardó demasiado en responder. Intenta nuevamente.',
+        504,
+        'GEMINI_TIMEOUT',
+      ),
+    );
+
+    const response = await request(app)
+      .post('/api/recipes/recommend')
+      .send(validRequest);
+
+    expect(response.status).toBe(504);
+
+    expect(response.body).toEqual({
+      success: false,
+      error: {
+        code: 'GEMINI_TIMEOUT',
+        message:
+          'El servicio de generación de recetas tardó demasiado en responder. Intenta nuevamente.',
+      },
+    });
+  });
 });

@@ -9,7 +9,10 @@ vi.mock('../src/services/gemini/gemini.client', () => ({
 }));
 
 import { geminiClient } from '../src/services/gemini/gemini.client';
-import { GEMINI_TIMEOUT_MS } from '../src/services/gemini/geminiTimeout';
+import {
+  GEMINI_RECIPE_TIMEOUT_MS,
+  GEMINI_TIMEOUT_MS,
+} from '../src/services/gemini/geminiTimeout';
 import { generateRecipeRecommendations } from '../src/services/gemini/recipe.service';
 import { AppError } from '../src/utils/errors';
 
@@ -28,6 +31,36 @@ const validRecipesPayload = {
       steps: [
         'Cocer el arroz en agua con sal.',
         'Freír los huevos y servir sobre el arroz.',
+      ],
+    },
+    {
+      name: 'Huevos pericos con arroz',
+      description: 'Huevos revueltos con tomate y cebolla acompañados de arroz.',
+      totalMinutes: 15,
+      ingredients: [
+        { name: 'arroz', quantity: 150, unit: 'g' },
+        { name: 'huevo', quantity: 2, unit: 'unidad' },
+        { name: 'tomate', quantity: 1, unit: 'unidad' },
+      ],
+      steps: [
+        'Picar el tomate finamente.',
+        'Batir los huevos y sofreírlos con el tomate.',
+        'Servir caliente junto al arroz.',
+      ],
+    },
+    {
+      name: 'Arroz frito con vegetales y huevo',
+      description: 'Arroz salteado con huevo y tomate picado.',
+      totalMinutes: 25,
+      ingredients: [
+        { name: 'arroz', quantity: 200, unit: 'g' },
+        { name: 'huevo', quantity: 2, unit: 'unidad' },
+        { name: 'tomate', quantity: 2, unit: 'unidad' },
+      ],
+      steps: [
+        'Preparar el arroz previamente.',
+        'Saltear los tomates picados.',
+        'Incorporar el huevo revuelto y mezclar con el arroz.',
       ],
     },
   ],
@@ -50,7 +83,6 @@ const sampleRecommendationRequest = {
   ],
   budget: 20000,
   servings: 2,
-  maxMinutes: 30,
 };
 
 describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
@@ -64,7 +96,7 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
     vi.useRealTimers();
   });
 
-  it('1. respuesta JSON válida -> GeneratedRecipes correcto y estructura de llamada verificada', async () => {
+  it('1. respuesta JSON válida -> GeneratedRecipes correcto, modelo gemini-3.5-flash-lite, thinking_level: minimal y schema verificado', async () => {
     mockedCreate.mockResolvedValueOnce({
       output_text: JSON.stringify(validRecipesPayload),
     } as any);
@@ -77,10 +109,14 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
     expect(mockedCreate).toHaveBeenCalledTimes(1);
 
     const callArg = mockedCreate.mock.calls[0][0];
-    expect(callArg.model).toBe('gemini-3.8-flash');
+    expect(callArg.model).toBe('gemini-3.5-flash-lite');
+    expect(callArg.generation_config).toEqual({
+      thinking_level: 'minimal',
+    });
     expect(callArg.input).toHaveLength(1);
     expect(callArg.input[0].type).toBe('text');
     expect(callArg.input[0].text).toContain('arroz');
+    expect(callArg.input[0].text).toContain('EXACTAMENTE 3 recetas');
     expect(callArg.response_format).toEqual({
       type: 'text',
       mime_type: 'application/json',
@@ -145,41 +181,8 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('5. 429 seguido de éxito -> retry correcto con backoff y devuelve recetas', async () => {
-    mockedCreate
-      .mockRejectedValueOnce({ status: 429, message: 'Rate limit' })
-      .mockResolvedValueOnce({
-        output_text: JSON.stringify(validRecipesPayload),
-      } as any);
-
-    const promise = generateRecipeRecommendations(sampleRecommendationRequest);
-
-    // Primer backoff (250 ms)
-    await vi.advanceTimersByTimeAsync(300);
-    const result = await promise;
-
-    expect(result).toEqual(validRecipesPayload);
-    expect(mockedCreate).toHaveBeenCalledTimes(2);
-  });
-
-  it('6. 503 seguido de éxito -> retry correcto con backoff y devuelve recetas', async () => {
-    mockedCreate
-      .mockRejectedValueOnce({ statusCode: 503, message: 'Server busy' })
-      .mockResolvedValueOnce({
-        output_text: JSON.stringify(validRecipesPayload),
-      } as any);
-
-    const promise = generateRecipeRecommendations(sampleRecommendationRequest);
-
-    await vi.advanceTimersByTimeAsync(300);
-    const result = await promise;
-
-    expect(result).toEqual(validRecipesPayload);
-    expect(mockedCreate).toHaveBeenCalledTimes(2);
-  });
-
-  it('7. 429 persistente -> propaga GEMINI_RATE_LIMIT (429) tras 3 intentos', async () => {
-    mockedCreate.mockRejectedValue({ status: 429 });
+  it('5. error 429 -> lanza GEMINI_RATE_LIMIT (429) de inmediato en un solo intento sin reintentos', async () => {
+    mockedCreate.mockRejectedValueOnce({ status: 429, message: 'Rate limit' });
 
     const promise = generateRecipeRecommendations(sampleRecommendationRequest);
     const assertion = expect(promise).rejects.toSatisfy((err: unknown) => {
@@ -190,14 +193,14 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
       );
     });
 
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(10);
     await assertion;
 
-    expect(mockedCreate).toHaveBeenCalledTimes(3);
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('8. 503 persistente -> propaga GEMINI_UNAVAILABLE (503) tras 3 intentos', async () => {
-    mockedCreate.mockRejectedValue({ statusCode: 503 });
+  it('6. error 503 -> lanza GEMINI_UNAVAILABLE (503) de inmediato en un solo intento sin reintentos', async () => {
+    mockedCreate.mockRejectedValueOnce({ statusCode: 503, message: 'Server busy' });
 
     const promise = generateRecipeRecommendations(sampleRecommendationRequest);
     const assertion = expect(promise).rejects.toSatisfy((err: unknown) => {
@@ -208,13 +211,13 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
       );
     });
 
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(10);
     await assertion;
 
-    expect(mockedCreate).toHaveBeenCalledTimes(3);
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('9. error genérico -> lanza RECIPE_GENERATION_FAILED (502) de inmediato sin retry', async () => {
+  it('7. error genérico -> lanza RECIPE_GENERATION_FAILED (502) de inmediato sin retry', async () => {
     mockedCreate.mockRejectedValueOnce(new Error('Conexión cerrada abruptamente'));
 
     const promise = generateRecipeRecommendations(sampleRecommendationRequest);
@@ -232,7 +235,24 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('10. timeout -> lanza GEMINI_TIMEOUT (504) tras expirar GEMINI_TIMEOUT_MS', async () => {
+  it('8. no expira al alcanzar el timeout por defecto (20s), sigue esperando hasta GEMINI_RECIPE_TIMEOUT_MS', async () => {
+    mockedCreate.mockImplementationOnce(() => new Promise(() => {}));
+
+    let settled = false;
+    generateRecipeRecommendations(sampleRecommendationRequest).catch(() => {
+      settled = true;
+    });
+
+    // Avanzamos 20s (GEMINI_TIMEOUT_MS)
+    await vi.advanceTimersByTimeAsync(GEMINI_TIMEOUT_MS);
+    expect(settled).toBe(false);
+
+    // Avanzamos hasta 59s
+    await vi.advanceTimersByTimeAsync(39_000);
+    expect(settled).toBe(false);
+  });
+
+  it('9. timeout específico de recetas -> lanza GEMINI_TIMEOUT (504) tras expirar GEMINI_RECIPE_TIMEOUT_MS (60s)', async () => {
     mockedCreate.mockImplementationOnce(() => new Promise(() => {}));
 
     const promise = generateRecipeRecommendations(sampleRecommendationRequest);
@@ -245,13 +265,13 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
       );
     });
 
-    await vi.advanceTimersByTimeAsync(GEMINI_TIMEOUT_MS + 50);
+    await vi.advanceTimersByTimeAsync(GEMINI_RECIPE_TIMEOUT_MS + 50);
     await assertion;
 
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('11. JSON inválido NO provoca retry de la llamada a Gemini', async () => {
+  it('10. JSON inválido NO provoca retry de la llamada a Gemini', async () => {
     mockedCreate.mockResolvedValueOnce({
       output_text: '{"recetas": incompleto',
     } as any);
@@ -265,7 +285,7 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('12. schema inválido NO provoca retry de la llamada a Gemini', async () => {
+  it('11. schema inválido NO provoca retry de la llamada a Gemini', async () => {
     mockedCreate.mockResolvedValueOnce({
       output_text: JSON.stringify({
         recipes: [
@@ -289,15 +309,15 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('13. máximo de intentos se limita estrictamente a 3 llamadas', async () => {
+  it('12. número de llamadas a Gemini se limita estrictamente a 1 solo intento para recetas', async () => {
     mockedCreate.mockRejectedValue({ status: 503 });
 
     const promise = generateRecipeRecommendations(sampleRecommendationRequest);
     const assertion = expect(promise).rejects.toThrow();
 
-    await vi.advanceTimersByTimeAsync(2000);
+    await vi.advanceTimersByTimeAsync(5000);
     await assertion;
 
-    expect(mockedCreate).toHaveBeenCalledTimes(3);
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 });
