@@ -1,5 +1,8 @@
 import { classifyGeminiError } from './geminiError';
 import { executeGeminiRequest } from './geminiRequest';
+import {
+  GEMINI_RECIPE_TIMEOUT_MS,
+} from './geminiTimeout';
 import { geminiClient } from './gemini.client';
 
 import {
@@ -24,23 +27,32 @@ export async function generateRecipeRecommendations(
   });
 
   try {
-    const interaction = await executeGeminiRequest(() =>
-      geminiClient.interactions.create({
-        model: 'gemini-3.8-flash',
+    const interaction = await executeGeminiRequest(
+      () =>
+        geminiClient.interactions.create({
+          model: 'gemini-3.5-flash-lite',
 
-        input: [
-          {
-            type: 'text',
-            text: prompt,
+          input: [
+            {
+              type: 'text',
+              text: prompt,
+            },
+          ],
+
+          generation_config: {
+            thinking_level: 'minimal',
           },
-        ],
 
-        response_format: {
-          type: 'text',
-          mime_type: 'application/json',
-          schema: generatedRecipesJsonSchema,
-        },
-      }),
+          response_format: {
+            type: 'text',
+            mime_type: 'application/json',
+            schema: generatedRecipesJsonSchema,
+          },
+        }),
+      {
+        timeoutMs: GEMINI_RECIPE_TIMEOUT_MS,
+        maxAttempts: 1,
+      },
     );
 
     if (!interaction.output_text) {
