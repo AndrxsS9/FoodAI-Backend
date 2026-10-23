@@ -6,6 +6,7 @@ import {
 } from '../src/services/gemini/geminiError';
 import {
   executeWithGeminiTimeout,
+  GEMINI_RECIPE_TIMEOUT_MS,
   GEMINI_TIMEOUT_MS,
   GeminiTimeoutError,
 } from '../src/services/gemini/geminiTimeout';
@@ -122,5 +123,27 @@ describe('geminiTimeout', () => {
 
     expect(result).toEqual({ id: 1 });
     expect(operation).toHaveBeenCalledTimes(1);
+  });
+
+  it('11. respeta GEMINI_RECIPE_TIMEOUT_MS (60000ms) sin expirar a los 20s y lanzando timeout a los 60s', async () => {
+    expect(GEMINI_RECIPE_TIMEOUT_MS).toBe(60_000);
+
+    const hangingOperation = () => new Promise<string>(() => {});
+    const timeoutPromise = executeWithGeminiTimeout(
+      hangingOperation,
+      GEMINI_RECIPE_TIMEOUT_MS,
+    );
+
+    const assertionPromise = expect(timeoutPromise).rejects.toThrow(
+      'La solicitud a Gemini excedió el tiempo límite de 60000ms.',
+    );
+
+    // No debe expirar al límite general (20s)
+    await vi.advanceTimersByTimeAsync(GEMINI_TIMEOUT_MS);
+    // No debe expirar a los 59s
+    await vi.advanceTimersByTimeAsync(39_000);
+    // Debe expirar exactamente al rebasar 60s
+    await vi.advanceTimersByTimeAsync(1_050);
+    await assertionPromise;
   });
 });
