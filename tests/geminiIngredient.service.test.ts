@@ -9,7 +9,10 @@ vi.mock('../src/services/gemini/gemini.client', () => ({
 }));
 
 import { geminiClient } from '../src/services/gemini/gemini.client';
-import { GEMINI_TIMEOUT_MS } from '../src/services/gemini/geminiTimeout';
+import {
+  GEMINI_INGREDIENT_TIMEOUT_MS,
+  GEMINI_TIMEOUT_MS,
+} from '../src/services/gemini/geminiTimeout';
 import { analyzeIngredientsFromImage } from '../src/services/gemini/ingredient.service';
 import { AppError } from '../src/utils/errors';
 
@@ -22,6 +25,12 @@ const validAnalysisPayload = {
       quantity: 3,
       unit: 'unidad',
       needsReview: false,
+    },
+    {
+      name: 'arroz',
+      quantity: null,
+      unit: 'desconocida',
+      needsReview: true,
     },
   ],
 };
@@ -42,7 +51,7 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
     vi.useRealTimers();
   });
 
-  it('1. respuesta JSON válida -> IngredientAnalysis correcto y estructura de llamada verificada', async () => {
+  it('1. respuesta JSON válida -> IngredientAnalysis correcto, modelo gemini-3.5-flash-lite, thinking_level: minimal y estructura de llamada verificada', async () => {
     mockedCreate.mockResolvedValueOnce({
       output_text: JSON.stringify(validAnalysisPayload),
     } as any);
@@ -54,8 +63,11 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
     expect(result).toEqual(validAnalysisPayload);
     expect(mockedCreate).toHaveBeenCalledTimes(1);
 
-    const callArg = mockedCreate.mock.calls[0][0];
-    expect(callArg.model).toBe('gemini-3.8-flash');
+    const callArg = mockedCreate.mock.calls[0][0] as any;
+    expect(callArg.model).toBe('gemini-3.5-flash-lite');
+    expect(callArg.generation_config).toEqual({
+      thinking_level: 'minimal',
+    });
     expect(callArg.input).toHaveLength(2);
     expect(callArg.input[0]).toEqual({
       type: 'image',
@@ -73,7 +85,43 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
     });
   });
 
-  it('2. output_text vacío -> lanza EMPTY_GEMINI_RESPONSE (502)', async () => {
+  it('2. preserva quantity: null, unit: desconocida y needsReview: true/false correctamente', async () => {
+    const payloadWithNulls = {
+      ingredients: [
+        {
+          name: 'harina',
+          quantity: null,
+          unit: 'desconocida',
+          needsReview: true,
+        },
+        {
+          name: 'huevo',
+          quantity: 6,
+          unit: 'unidad',
+          needsReview: false,
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(payloadWithNulls),
+    } as any);
+
+    const promise = analyzeIngredientsFromImage({
+      buffer: Buffer.from('png-bytes'),
+      mimeType: 'image/png',
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result).toEqual(payloadWithNulls);
+    expect(result.ingredients[0].quantity).toBeNull();
+    expect(result.ingredients[0].needsReview).toBe(true);
+    expect(result.ingredients[1].quantity).toBe(6);
+    expect(result.ingredients[1].needsReview).toBe(false);
+  });
+
+  it('3. output_text vacío -> lanza EMPTY_GEMINI_RESPONSE (502)', async () => {
     mockedCreate.mockResolvedValueOnce({
       output_text: '',
     } as any);
@@ -92,7 +140,7 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('3. JSON inválido -> lanza INVALID_GEMINI_JSON (502)', async () => {
+  it('4. JSON inválido -> lanza INVALID_GEMINI_JSON (502)', async () => {
     mockedCreate.mockResolvedValueOnce({
       output_text: '{esto no es un json valido',
     } as any);
@@ -111,7 +159,7 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('4. schema inválido -> lanza INVALID_GEMINI_RESPONSE (502)', async () => {
+  it('5. schema inválido -> lanza INVALID_GEMINI_RESPONSE (502)', async () => {
     mockedCreate.mockResolvedValueOnce({
       output_text: JSON.stringify({ notIngredients: 123 }),
     } as any);
@@ -130,41 +178,8 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('5. 429 seguido de éxito -> reintenta con backoff y responde correctamente', async () => {
-    mockedCreate
-      .mockRejectedValueOnce({ status: 429, message: 'Quota exceeded' })
-      .mockResolvedValueOnce({
-        output_text: JSON.stringify(validAnalysisPayload),
-      } as any);
-
-    const promise = analyzeIngredientsFromImage(sampleInput);
-
-    // Avanza el timer del primer backoff (250 ms)
-    await vi.advanceTimersByTimeAsync(300);
-    const result = await promise;
-
-    expect(result).toEqual(validAnalysisPayload);
-    expect(mockedCreate).toHaveBeenCalledTimes(2);
-  });
-
-  it('6. 503 seguido de éxito -> reintenta con backoff y responde correctamente', async () => {
-    mockedCreate
-      .mockRejectedValueOnce({ statusCode: 503, message: 'Temporarily overloaded' })
-      .mockResolvedValueOnce({
-        output_text: JSON.stringify(validAnalysisPayload),
-      } as any);
-
-    const promise = analyzeIngredientsFromImage(sampleInput);
-
-    await vi.advanceTimersByTimeAsync(300);
-    const result = await promise;
-
-    expect(result).toEqual(validAnalysisPayload);
-    expect(mockedCreate).toHaveBeenCalledTimes(2);
-  });
-
-  it('7. 429 persistente -> propaga GEMINI_RATE_LIMIT (429) tras agotar reintentos', async () => {
-    mockedCreate.mockRejectedValue({ status: 429 });
+  it('6. error 429 -> lanza GEMINI_RATE_LIMIT (429) de inmediato en un solo intento sin reintentos', async () => {
+    mockedCreate.mockRejectedValueOnce({ status: 429, message: 'Quota exceeded' });
 
     const promise = analyzeIngredientsFromImage(sampleInput);
     const assertion = expect(promise).rejects.toSatisfy((err: unknown) => {
@@ -175,15 +190,14 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
       );
     });
 
-    // 250ms primer backoff + 500ms segundo backoff
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(10);
     await assertion;
 
-    expect(mockedCreate).toHaveBeenCalledTimes(3);
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('8. 503 persistente -> propaga GEMINI_UNAVAILABLE (503) tras agotar reintentos', async () => {
-    mockedCreate.mockRejectedValue({ status: 503 });
+  it('7. error 503 -> lanza GEMINI_UNAVAILABLE (503) de inmediato en un solo intento sin reintentos', async () => {
+    mockedCreate.mockRejectedValueOnce({ statusCode: 503, message: 'Temporarily overloaded' });
 
     const promise = analyzeIngredientsFromImage(sampleInput);
     const assertion = expect(promise).rejects.toSatisfy((err: unknown) => {
@@ -194,13 +208,13 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
       );
     });
 
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(10);
     await assertion;
 
-    expect(mockedCreate).toHaveBeenCalledTimes(3);
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('9. error genérico -> lanza IMAGE_ANALYSIS_FAILED (502) de inmediato sin reintentar', async () => {
+  it('8. error genérico -> lanza IMAGE_ANALYSIS_FAILED (502) de inmediato sin retry', async () => {
     mockedCreate.mockRejectedValueOnce(new Error('Fallo inesperado de red'));
 
     const promise = analyzeIngredientsFromImage(sampleInput);
@@ -218,7 +232,24 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('10. timeout -> lanza GEMINI_TIMEOUT (504) tras expirar GEMINI_TIMEOUT_MS', async () => {
+  it('9. no expira al alcanzar el timeout por defecto (20s), sigue esperando hasta GEMINI_INGREDIENT_TIMEOUT_MS (45s)', async () => {
+    mockedCreate.mockImplementationOnce(() => new Promise(() => {}));
+
+    let settled = false;
+    analyzeIngredientsFromImage(sampleInput).catch(() => {
+      settled = true;
+    });
+
+    // Avanzamos 20s (GEMINI_TIMEOUT_MS)
+    await vi.advanceTimersByTimeAsync(GEMINI_TIMEOUT_MS);
+    expect(settled).toBe(false);
+
+    // Avanzamos hasta 44s
+    await vi.advanceTimersByTimeAsync(24_000);
+    expect(settled).toBe(false);
+  });
+
+  it('10. timeout específico de ingredientes -> lanza GEMINI_TIMEOUT (504) tras expirar GEMINI_INGREDIENT_TIMEOUT_MS (45s)', async () => {
     mockedCreate.mockImplementationOnce(() => new Promise(() => {}));
 
     const promise = analyzeIngredientsFromImage(sampleInput);
@@ -231,13 +262,13 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
       );
     });
 
-    await vi.advanceTimersByTimeAsync(GEMINI_TIMEOUT_MS + 50);
+    await vi.advanceTimersByTimeAsync(GEMINI_INGREDIENT_TIMEOUT_MS + 50);
     await assertion;
 
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('11. JSON inválido NO provoca reintento de la llamada a Gemini', async () => {
+  it('11. JSON inválido NO provoca retry de la llamada a Gemini', async () => {
     mockedCreate.mockResolvedValueOnce({
       output_text: '<xml>not json</xml>',
     } as any);
@@ -251,7 +282,7 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('12. schema inválido NO provoca reintento de la llamada a Gemini', async () => {
+  it('12. schema inválido NO provoca retry de la llamada a Gemini', async () => {
     mockedCreate.mockResolvedValueOnce({
       output_text: JSON.stringify({
         ingredients: [
@@ -274,7 +305,7 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('13. número máximo de llamadas se limita estrictamente a 3 intentos', async () => {
+  it('13. número de llamadas a Gemini se limita estrictamente a 1 solo intento para análisis de imagen', async () => {
     mockedCreate.mockRejectedValue({ statusCode: 429 });
 
     const promise = analyzeIngredientsFromImage(sampleInput);
@@ -283,6 +314,6 @@ describe('geminiIngredient.service (analyzeIngredientsFromImage)', () => {
     await vi.advanceTimersByTimeAsync(2000);
     await assertion;
 
-    expect(mockedCreate).toHaveBeenCalledTimes(3);
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 });

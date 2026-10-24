@@ -1,5 +1,6 @@
 import { classifyGeminiError } from './geminiError';
 import { executeGeminiRequest } from './geminiRequest';
+import { GEMINI_INGREDIENT_TIMEOUT_MS } from './geminiTimeout';
 import { geminiClient } from './gemini.client';
 
 import {
@@ -24,28 +25,37 @@ export async function analyzeIngredientsFromImage({
   const base64Image = buffer.toString('base64');
 
   try {
-    const interaction = await executeGeminiRequest(() =>
-      geminiClient.interactions.create({
-        model: 'gemini-3.8-flash',
+    const interaction = await executeGeminiRequest(
+      () =>
+        geminiClient.interactions.create({
+          model: 'gemini-3.5-flash-lite',
 
-        input: [
-          {
-            type: 'image',
-            data: base64Image,
-            mime_type: mimeType,
+          input: [
+            {
+              type: 'image',
+              data: base64Image,
+              mime_type: mimeType,
+            },
+            {
+              type: 'text',
+              text: detectIngredientsPrompt,
+            },
+          ],
+
+          generation_config: {
+            thinking_level: 'minimal',
           },
-          {
+
+          response_format: {
             type: 'text',
-            text: detectIngredientsPrompt,
+            mime_type: 'application/json',
+            schema: ingredientAnalysisJsonSchema,
           },
-        ],
-
-        response_format: {
-          type: 'text',
-          mime_type: 'application/json',
-          schema: ingredientAnalysisJsonSchema,
-        },
-      }),
+        }),
+      {
+        timeoutMs: GEMINI_INGREDIENT_TIMEOUT_MS,
+        maxAttempts: 1,
+      },
     );
 
     if (!interaction.output_text) {
