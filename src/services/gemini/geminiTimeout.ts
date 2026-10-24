@@ -1,7 +1,14 @@
 /**
- * Límite de tiempo por defecto para solicitudes estándar a Gemini (ej. análisis de imágenes).
+ * Límite de tiempo por defecto para solicitudes estándar a Gemini.
  */
 export const GEMINI_TIMEOUT_MS = 20_000;
+
+/**
+ * Límite de tiempo específico para el análisis de imágenes de ingredientes con Gemini (45 segundos).
+ * El frontend soporta hasta 75 segundos, por lo que 45s otorga tiempo suficiente
+ * para la tokenización multimodal y el análisis sin agotar el timeout del cliente.
+ */
+export const GEMINI_INGREDIENT_TIMEOUT_MS = 45_000;
 
 /**
  * Límite de tiempo específico para la generación de recetas con Gemini (60 segundos).

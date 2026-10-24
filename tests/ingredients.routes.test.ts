@@ -182,4 +182,67 @@ describe('POST /api/ingredients/analyze', () => {
       },
     });
   });
+
+  it('debe manejar cuando Gemini excede el tiempo límite (504 GEMINI_TIMEOUT)', async () => {
+    mockedAnalyzeIngredients.mockRejectedValue(
+      new AppError(
+        'El servicio de análisis tardó demasiado en responder. Intenta nuevamente.',
+        504,
+        'GEMINI_TIMEOUT',
+      ),
+    );
+
+    const response = await request(app)
+      .post('/api/ingredients/analyze')
+      .attach(
+        'image',
+        Buffer.from('imagen-falsa'),
+        {
+          filename: 'nevera.webp',
+          contentType: 'image/webp',
+        },
+      );
+
+    expect(response.status).toBe(504);
+
+    expect(response.body).toEqual({
+      success: false,
+      error: {
+        code: 'GEMINI_TIMEOUT',
+        message:
+          'El servicio de análisis tardó demasiado en responder. Intenta nuevamente.',
+      },
+    });
+  });
+
+  it('debe manejar fallos generales del análisis (502 IMAGE_ANALYSIS_FAILED)', async () => {
+    mockedAnalyzeIngredients.mockRejectedValue(
+      new AppError(
+        'No fue posible analizar la imagen.',
+        502,
+        'IMAGE_ANALYSIS_FAILED',
+      ),
+    );
+
+    const response = await request(app)
+      .post('/api/ingredients/analyze')
+      .attach(
+        'image',
+        Buffer.from('imagen-falsa'),
+        {
+          filename: 'nevera.jpg',
+          contentType: 'image/jpeg',
+        },
+      );
+
+    expect(response.status).toBe(502);
+
+    expect(response.body).toEqual({
+      success: false,
+      error: {
+        code: 'IMAGE_ANALYSIS_FAILED',
+        message: 'No fue posible analizar la imagen.',
+      },
+    });
+  });
 });

@@ -1,39 +1,35 @@
 export const detectIngredientsPrompt = `
-Analiza exclusivamente los alimentos visibles en la imagen.
-
-Tu objetivo es construir el inventario inicial de una despensa doméstica.
+Analiza exclusivamente los alimentos visibles en la imagen para construir el inventario de una despensa doméstica.
 
 REGLAS:
 
-1. Devuelve únicamente alimentos que puedas identificar visualmente.
-2. Utiliza nombres comunes en español.
-3. No inventes alimentos que no sean visibles.
-4. No generes recetas.
-5. No describas la fotografía.
-6. No agregues marcas comerciales salvo que sean necesarias para identificar el alimento.
-7. Si puedes contar claramente las unidades, utiliza "unidad".
-8. Si puedes inferir razonablemente peso o volumen, utiliza g, kg, ml o l.
-9. Si no puedes determinar una cantidad de forma razonable:
-   - quantity debe ser null.
-   - unit debe ser "desconocida".
-   - needsReview debe ser true.
-10. Si el alimento es visible pero existe alguna duda sobre su identificación, utiliza needsReview=true.
-11. No asumas qué hay dentro de envases opacos si no puede determinarse visualmente.
-12. No incluyas objetos que no sean alimentos.
+1. Identifica únicamente alimentos e ingredientes que sean claramente visibles.
+2. Utiliza nombres comunes en español (preferiblemente vocabulario culinario común en Colombia y Latinoamérica, ej.: tomate, huevo, arroz, cebolla, papa, aguacate).
+3. No inventes alimentos que no aparezcan en la imagen. No asumas la presencia de ingredientes no visibles.
+4. No confundas el empaque o envoltorio con el alimento real. Si un empaque es opaco o su contenido exacto es incierto, no inventes el alimento a menos que sea claramente identificable.
+5. Estima la cantidad únicamente si existe evidencia visual suficiente:
+   - Si puedes contar unidades individuales con claridad, usa la unidad "unidad" (ej.: 3 huevos -> quantity: 3, unit: "unidad", needsReview: false).
+   - Si puedes inferir razonablemente peso o volumen a partir de marcas legibles o empaques estándar reconocibles, usa "g", "kg", "ml" o "l".
+6. Si la cantidad no puede determinarse con fiabilidad (por ejemplo, granos en un recipiente o bolsa sin gramaje visible, alimentos a granel):
+   - quantity DEBE ser null.
+   - unit DEBE ser "desconocida".
+   - needsReview DEBE ser true.
+7. Si el alimento es visible pero existe cualquier incertidumbre en su identificación o cantidad, marca needsReview: true.
+8. Unidades permitidas exclusivamente: "unidad", "g", "kg", "ml", "l", "desconocida".
+9. No incluyas objetos, platos, utensilios ni empaques vacíos que no sean alimentos.
+10. No generes recetas, no describas la escena ni incluyas explicaciones en texto. Retorna exclusivamente los datos estructurados.
 
 Ejemplos:
 
-Cuatro tomates claramente visibles:
-
+Tres huevos enteros visibles:
 {
-  "name": "Tomate",
-  "quantity": 4,
+  "name": "Huevo",
+  "quantity": 3,
   "unit": "unidad",
   "needsReview": false
 }
 
-Una bolsa cuyo contenido parece arroz pero cuya cantidad no puede determinarse:
-
+Un tazón con arroz blanco crudo sin peso determinable:
 {
   "name": "Arroz",
   "quantity": null,

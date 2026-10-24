@@ -108,7 +108,7 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
     expect(result).toEqual(validRecipesPayload);
     expect(mockedCreate).toHaveBeenCalledTimes(1);
 
-    const callArg = mockedCreate.mock.calls[0][0];
+    const callArg = mockedCreate.mock.calls[0][0] as any;
     expect(callArg.model).toBe('gemini-3.5-flash-lite');
     expect(callArg.generation_config).toEqual({
       thinking_level: 'minimal',
