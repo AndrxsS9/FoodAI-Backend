@@ -58,6 +58,50 @@ describe('ingredientPrice.service', () => {
       expect(arroz?.priceSource).toBe('market_verified');
       expect(lechuga?.priceSource).toBe('reference_estimate');
     });
+
+    it('el catálogo contiene exactamente 78 ingredientes con fuentes documentadas y transparentes', () => {
+      expect(ingredientPriceCatalog).toHaveLength(78);
+
+      const verified = ingredientPriceCatalog.filter(
+        (item) => item.priceSource === 'market_verified',
+      );
+      const reference = ingredientPriceCatalog.filter(
+        (item) => item.priceSource === 'reference_estimate',
+      );
+
+      expect(verified).toHaveLength(19);
+      expect(reference).toHaveLength(59);
+
+      const verifiedIds = verified.map((i) => i.id);
+      expect(verifiedIds).toContain('arroz');
+      expect(verifiedIds).toContain('huevo');
+      expect(verifiedIds).toContain('leche');
+      expect(verifiedIds).toContain('aceite');
+      expect(verifiedIds).toContain('sal');
+      expect(verifiedIds).toContain('agua');
+
+      const referenceIds = reference.map((i) => i.id);
+      expect(referenceIds).toContain('lechuga');
+      expect(referenceIds).toContain('cilantro');
+      expect(referenceIds).toContain('auyama');
+      expect(referenceIds).toContain('oregano');
+    });
+
+    it('documenta que el precio de compra representa paquetes comerciales de referencia y no siempre es proporcional a la porción', () => {
+      const sal = getIngredientPriceDetails('sal');
+      expect(sal?.estimatedPurchasePrice).toBe(1500);
+      expect(sal?.estimatedConsumptionPrice).toBe(100);
+      expect(sal?.estimatedPurchasePrice).toBeGreaterThan(sal?.estimatedConsumptionPrice!);
+
+      const aceite = getIngredientPriceDetails('aceite');
+      expect(aceite?.estimatedPurchasePrice).toBe(7000);
+      expect(aceite?.estimatedConsumptionPrice).toBe(500);
+      expect(aceite?.estimatedPurchasePrice).toBeGreaterThan(aceite?.estimatedConsumptionPrice!);
+
+      const agua = getIngredientPriceDetails('agua');
+      expect(agua?.estimatedPurchasePrice).toBe(0);
+      expect(agua?.estimatedConsumptionPrice).toBe(0);
+    });
   });
 
   describe('estimateIngredientCost', () => {

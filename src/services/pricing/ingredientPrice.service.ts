@@ -15,21 +15,43 @@ import { prepareIngredientName } from '../../utils/ingredientIdentity';
  *      ciudades principales de Colombia (canasta básica en tiendas D1, Ara,
  *      Éxito y plazas mayoristas de abastecimiento como Corabastos).
  *
- * 2. DISTINCIÓN ENTRE COSTO DE COMPRA Y COSTO DE CONSUMO:
+ * 2. PRESENTACIONES COMERCIALES Y NO PROPORCIONALIDAD EN COMPRA:
  *    - estimatedPurchasePrice:
- *      Costo de adquirir la unidad comercial mínima común en el mercado colombiano
- *      (paquete de 500g/1kg, botella de aceite, sobre de especias, atado de verduras).
- *      Este es el costo predeterminado para planificar compras y evaluar presupuesto.
+ *      Representa el costo de adquirir la unidad comercial mínima habitual en el
+ *      mercado colombiano (paquete de 500g/1kg, botella de aceite, sobre de especias,
+ *      unidad o atado). En esta fase del MVP, este valor representa el paquete
+ *      comercial de referencia y no siempre es proporcional a la cantidad exacta
+ *      utilizada en la receta (ej. si la receta pide 200g de arroz, el costo de
+ *      compra refleja el paquete comercial de 1kg que el usuario debe adquirir).
  *    - estimatedConsumptionPrice:
  *      Costo prorrateado del uso real del ingrediente en una preparación típica casera
  *      de 2 a 4 porciones (ej. 2 cucharadas de aceite, 1 pizca de sal, 2 dientes de ajo).
  *
- * 3. POLÍTICA PARA EL AGUA DE COCINA:
+ * 3. TRANSPARENCIA EN FUENTES DE PRECIOS:
+ *    - market_verified:
+ *      Clasificación reservada exclusivamente para insumos con fuentes públicas
+ *      identificables y contrastables:
+ *      a) DANE - SIPSA (Sistema de Información de Precios y Abastecimiento del
+ *         Sector Agropecuario, Colombia) para hortalizas y proteínas frescas de
+ *         consumo masivo (tomate chonto, cebolla cabezona, cebolla junca, papa común,
+ *         zanahoria, plátano hartón, huevo AA, pollo, carne de res).
+ *      b) Canasta básica de cadenas de descuento duro y supermercados nacionales
+ *         (D1, Ara, Éxito) para abarrotes empaquetados estándar (arroz, pasta,
+ *         leche, aceite, sal, azúcar, harina de trigo, panela, atún en lata).
+ *      c) Agua corriente de red domiciliaria potable (tarifa doméstica de cocina: $0 COP).
+ *    - reference_estimate:
+ *      Clasificación para todos los insumos con variabilidad estacional agrícola,
+ *      oferta heterogénea en plazas de mercado locales, cortes secundarios o
+ *      formatos de tienda de barrio donde no existe un boletín único centralizado
+ *      (hierbas aromáticas, tubérculos regionales, frutas, embutidos y salsas).
+ *      Esto garantiza honestidad metodológica sin alegar verificaciones externas no respaldadas.
+ *
+ * 4. POLÍTICA PARA EL AGUA DE COCINA:
  *    - El agua corriente potable (de la llave / grifo) para cocción, hervor o dilución
  *      se valora en $0 COP en el contexto de recetas caseras. No se considera una
  *      compra faltante onerosa.
  *
- * 4. BÁSICOS DE DESPENSA (Sal, Aceite, Especias, Azúcar):
+ * 5. BÁSICOS DE DESPENSA (Sal, Aceite, Especias, Azúcar):
  *    - No se asume tácitamente que el usuario posee sal, aceite u otros básicos.
  *      Si no están en la despensa del usuario, el sistema los reporta en
  *      `missingIngredients`.
@@ -37,12 +59,6 @@ import { prepareIngredientName } from '../../utils/ingredientIdentity';
  *      en Colombia (sobres individuales de especias a $1.000-$1.200 COP, bolsa de sal
  *      a $1.500 COP, botella de aceite a $7.000 COP).
  *    - Sus costos de consumo son fraccionales ($100 a $500 COP).
- *
- * 5. FUENTES DE PRECIOS (Transparencia):
- *    - market_verified: Referenciado y cotejado con precios públicos de cadenas de
- *      descuento duro y supermercados de cadena en Colombia.
- *    - reference_estimate: Estimación representativa calculada para insumos con alta
- *      variabilidad estacional o de plaza local (hojas verdes, tubérculos regionales).
  *
  * 6. FALLBACK PARA INGREDIENTES DESCONOCIDOS:
  *    - Si un ingrediente no figura en el catálogo ni en los alias culinarios,
@@ -85,7 +101,7 @@ export const UNKNOWN_INGREDIENT_ESTIMATED_COST = 5000;
 export const UNKNOWN_INGREDIENT_CONSUMPTION_COST = 2000;
 
 export const ingredientPriceCatalog: PriceRule[] = [
-  /* ---------------- PRODUCE & VEGETALES BÁSICOS (1-18) ---------------- */
+  /* ---------------- PRODUCE & VEGETALES BÁSICOS (1-22) ---------------- */
   {
     id: 'tomate',
     canonicalName: 'tomate',
@@ -94,7 +110,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 1500,
     estimatedConsumptionPrice: 750,
     priceSource: 'market_verified',
-    unitDescription: 'Bolsa 500g o 3-4 unidades de tomate chonto',
+    unitDescription: 'Bolsa 500g o 3-4 unidades de tomate chonto (DANE-SIPSA)',
   },
   {
     id: 'cebolla',
@@ -104,7 +120,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 1500,
     estimatedConsumptionPrice: 750,
     priceSource: 'market_verified',
-    unitDescription: 'Bolsa 500g o 2-3 unidades medianas',
+    unitDescription: 'Bolsa 500g o 2-3 unidades medianas (DANE-SIPSA)',
   },
   {
     id: 'cebolla_larga',
@@ -114,7 +130,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 2000,
     estimatedConsumptionPrice: 600,
     priceSource: 'market_verified',
-    unitDescription: 'Atado de cebolla junca (aprox. 300g)',
+    unitDescription: 'Atado de cebolla junca aprox. 300g (DANE-SIPSA)',
   },
   {
     id: 'papa',
@@ -124,7 +140,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 2500,
     estimatedConsumptionPrice: 1500,
     priceSource: 'market_verified',
-    unitDescription: 'Bolsa 1 kg de papa común lavada',
+    unitDescription: 'Bolsa 1 kg de papa común lavada (DANE-SIPSA)',
   },
   {
     id: 'papa_criolla',
@@ -133,7 +149,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'produce',
     estimatedPurchasePrice: 3000,
     estimatedConsumptionPrice: 1800,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bolsa 500g de papa criolla seleccionada',
   },
   {
@@ -144,7 +160,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 1500,
     estimatedConsumptionPrice: 750,
     priceSource: 'market_verified',
-    unitDescription: 'Bolsa 500g de zanahoria lavada',
+    unitDescription: 'Bolsa 500g de zanahoria lavada (DANE-SIPSA)',
   },
   {
     id: 'ajo',
@@ -153,7 +169,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'produce',
     estimatedPurchasePrice: 1000,
     estimatedConsumptionPrice: 300,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Malla con 2-3 cabezas de ajo',
   },
   {
@@ -164,7 +180,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 2000,
     estimatedConsumptionPrice: 1000,
     priceSource: 'market_verified',
-    unitDescription: '1 plátano hartón grande (verde o maduro)',
+    unitDescription: '1 plátano hartón grande verde o maduro (DANE-SIPSA)',
   },
   {
     id: 'yuca',
@@ -173,7 +189,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'produce',
     estimatedPurchasePrice: 2500,
     estimatedConsumptionPrice: 1500,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Porción 500g de yuca parafinada o fresca',
   },
   {
@@ -183,7 +199,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'produce',
     estimatedPurchasePrice: 3500,
     estimatedConsumptionPrice: 2000,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: '1 aguacate mediano para ensalada o acompañamiento',
   },
   {
@@ -193,7 +209,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'produce',
     estimatedPurchasePrice: 2500,
     estimatedConsumptionPrice: 1500,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bandeja con 2 mazorcas tiernas o lata de maíz tierno',
   },
   {
@@ -203,7 +219,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'produce',
     estimatedPurchasePrice: 2000,
     estimatedConsumptionPrice: 1000,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: '1 pimentón rojo o verde mediano',
   },
   {
@@ -224,7 +240,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 2000,
     estimatedConsumptionPrice: 1000,
     priceSource: 'reference_estimate',
-    unitDescription: 'Atado de espinaca fresca (aprox. 300g)',
+    unitDescription: 'Atado de espinaca fresca aprox. 300g',
   },
   {
     id: 'repollo',
@@ -253,7 +269,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'produce',
     estimatedPurchasePrice: 1500,
     estimatedConsumptionPrice: 800,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: '1 pepino cohombro grande',
   },
   {
@@ -283,7 +299,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'produce',
     estimatedPurchasePrice: 4500,
     estimatedConsumptionPrice: 3000,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bandeja 200g de champiñón entero o tajado',
   },
   {
@@ -293,7 +309,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'produce',
     estimatedPurchasePrice: 2000,
     estimatedConsumptionPrice: 1000,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bolsa 500g de habichuela fresca',
   },
   {
@@ -307,7 +323,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     unitDescription: 'Atado de 3 remolachas',
   },
 
-  /* ---------------- PROTEÍNAS & HUEVOS (19-27) ---------------- */
+  /* ---------------- PROTEÍNAS & HUEVOS (23-31) ---------------- */
   {
     id: 'huevo',
     canonicalName: 'huevo',
@@ -316,7 +332,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 800,
     estimatedConsumptionPrice: 800,
     priceSource: 'market_verified',
-    unitDescription: '1 huevo tipo AA o unidad individual de compra de barrio',
+    unitDescription: '1 huevo tipo AA o unidad individual de compra (DANE-SIPSA)',
   },
   {
     id: 'pollo',
@@ -326,7 +342,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 9000,
     estimatedConsumptionPrice: 6000,
     priceSource: 'market_verified',
-    unitDescription: 'Bandeja pechuga o pierna pernil (aprox. 500g)',
+    unitDescription: 'Bandeja pechuga o pierna pernil aprox. 500g (DANE-SIPSA)',
   },
   {
     id: 'carne',
@@ -336,7 +352,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 12000,
     estimatedConsumptionPrice: 8000,
     priceSource: 'market_verified',
-    unitDescription: 'Libra (500g) de carne de res magra o molida',
+    unitDescription: 'Libra 500g de carne de res magra o molida (DANE-SIPSA)',
   },
   {
     id: 'cerdo',
@@ -345,8 +361,8 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'protein',
     estimatedPurchasePrice: 11000,
     estimatedConsumptionPrice: 7500,
-    priceSource: 'market_verified',
-    unitDescription: 'Libra (500g) de pulpa o chuleta de cerdo',
+    priceSource: 'reference_estimate',
+    unitDescription: 'Libra 500g de pulpa o chuleta de cerdo',
   },
   {
     id: 'atun',
@@ -356,7 +372,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 5500,
     estimatedConsumptionPrice: 5500,
     priceSource: 'market_verified',
-    unitDescription: 'Lata de atún 140g o lomitos en agua/aceite',
+    unitDescription: 'Lata de atún 140g en agua o aceite (D1 / Ara / Éxito)',
   },
   {
     id: 'pescado',
@@ -365,7 +381,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'protein',
     estimatedPurchasePrice: 10000,
     estimatedConsumptionPrice: 7000,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bandeja 400g de filete de tilapia o pescado blanco',
   },
   {
@@ -375,7 +391,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'protein',
     estimatedPurchasePrice: 7000,
     estimatedConsumptionPrice: 3500,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Paquete de tocineta ahumada 200g',
   },
   {
@@ -385,7 +401,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'protein',
     estimatedPurchasePrice: 4500,
     estimatedConsumptionPrice: 2500,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Paquete de 6-8 salchichas tradicionales',
   },
   {
@@ -395,11 +411,11 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'protein',
     estimatedPurchasePrice: 6000,
     estimatedConsumptionPrice: 3000,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Paquete de 3-4 chorizos campesinos',
   },
 
-  /* ---------------- LÁCTEOS & DERIVADOS (28-33) ---------------- */
+  /* ---------------- LÁCTEOS & DERIVADOS (32-37) ---------------- */
   {
     id: 'leche',
     canonicalName: 'leche',
@@ -408,7 +424,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 4500,
     estimatedConsumptionPrice: 1500,
     priceSource: 'market_verified',
-    unitDescription: 'Bolsa de leche 900ml / 1 litro',
+    unitDescription: 'Bolsa de leche 900ml / 1 litro entera o deslactosada (D1 / Ara / Éxito)',
   },
   {
     id: 'queso',
@@ -417,7 +433,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'dairy',
     estimatedPurchasePrice: 6500,
     estimatedConsumptionPrice: 3000,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bloque 250g-300g de queso campesino o mozzarella',
   },
   {
@@ -427,7 +443,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'dairy',
     estimatedPurchasePrice: 4500,
     estimatedConsumptionPrice: 1200,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Barra de mantequilla 250g',
   },
   {
@@ -437,7 +453,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'dairy',
     estimatedPurchasePrice: 3000,
     estimatedConsumptionPrice: 800,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Tarrina 250g de margarina vegetal',
   },
   {
@@ -447,7 +463,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'dairy',
     estimatedPurchasePrice: 3500,
     estimatedConsumptionPrice: 2000,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bolsa 200g de crema de leche',
   },
   {
@@ -461,7 +477,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     unitDescription: 'Vaso o tarrina 200g de suero costeño',
   },
 
-  /* ---------------- GRANOS, CEREALES & HARINAS (34-43) ---------------- */
+  /* ---------------- GRANOS, CEREALES & HARINAS (38-48) ---------------- */
   {
     id: 'arroz',
     canonicalName: 'arroz',
@@ -470,7 +486,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 3500,
     estimatedConsumptionPrice: 1200,
     priceSource: 'market_verified',
-    unitDescription: 'Bolsa 1 kg de arroz blanco',
+    unitDescription: 'Bolsa 1 kg de arroz blanco (D1 / Ara / Éxito)',
   },
   {
     id: 'pasta',
@@ -480,7 +496,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 3500,
     estimatedConsumptionPrice: 1500,
     priceSource: 'market_verified',
-    unitDescription: 'Paquete 500g de pasta o espaguetis',
+    unitDescription: 'Paquete 500g de pasta o espaguetis (D1 / Ara / Éxito)',
   },
   {
     id: 'harina_trigo',
@@ -490,7 +506,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 3500,
     estimatedConsumptionPrice: 1000,
     priceSource: 'market_verified',
-    unitDescription: 'Bolsa 1 kg de harina de trigo tradicional',
+    unitDescription: 'Bolsa 1 kg de harina de trigo tradicional (D1 / Ara / Éxito)',
   },
   {
     id: 'harina_maiz',
@@ -499,7 +515,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'grain_pasta',
     estimatedPurchasePrice: 4000,
     estimatedConsumptionPrice: 1500,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Paquete 1 kg de harina precocida de maíz para arepas',
   },
   {
@@ -509,7 +525,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'grain_pasta',
     estimatedPurchasePrice: 3000,
     estimatedConsumptionPrice: 1000,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bolsa 400g de avena en hojuelas',
   },
   {
@@ -519,7 +535,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'grain_pasta',
     estimatedPurchasePrice: 3500,
     estimatedConsumptionPrice: 1200,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bolsa de pan tajado 400g o 4 panes de panadería',
   },
   {
@@ -529,7 +545,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'grain_pasta',
     estimatedPurchasePrice: 3000,
     estimatedConsumptionPrice: 1500,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Paquete de 5 arepas de tela o maíz',
   },
   {
@@ -539,7 +555,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'legume',
     estimatedPurchasePrice: 5000,
     estimatedConsumptionPrice: 2500,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bolsa 500g de frijol seco cargamanto o rojo',
   },
   {
@@ -549,7 +565,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'legume',
     estimatedPurchasePrice: 4000,
     estimatedConsumptionPrice: 2000,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bolsa 500g de lenteja importada',
   },
   {
@@ -559,7 +575,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'legume',
     estimatedPurchasePrice: 4500,
     estimatedConsumptionPrice: 2200,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bolsa 500g de garbanzo seco',
   },
   {
@@ -569,11 +585,11 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'legume',
     estimatedPurchasePrice: 2500,
     estimatedConsumptionPrice: 1200,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bolsa 500g de arveja seca o fresca',
   },
 
-  /* ---------------- BÁSICOS DE DESPENSA, ACEITES & AGUA (44-51) ---------------- */
+  /* ---------------- BÁSICOS DE DESPENSA, ACEITES & AGUA (49-56) ---------------- */
   {
     id: 'agua',
     canonicalName: 'agua',
@@ -593,7 +609,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedConsumptionPrice: 0,
     priceSource: 'market_verified',
     unitDescription: 'Agua potable de red doméstica (consumo ordinario de cocina)',
-    notes: 'Política de costo cero en cocina casera; no genera costo de compra adicional.',
+    notes: 'Insumo domiciliario de cocina; costo 0 COP para compras de receta.',
   },
   {
     id: 'sal',
@@ -603,7 +619,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 1500,
     estimatedConsumptionPrice: 100,
     priceSource: 'market_verified',
-    unitDescription: 'Bolsa 1 kg de sal refinada de cocina',
+    unitDescription: 'Bolsa 1 kg de sal refinada de cocina (D1 / Ara / Éxito)',
   },
   {
     id: 'aceite',
@@ -613,7 +629,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 7000,
     estimatedConsumptionPrice: 500,
     priceSource: 'market_verified',
-    unitDescription: 'Botella de aceite vegetal 500ml-900ml',
+    unitDescription: 'Botella de aceite vegetal 500ml-900ml (D1 / Ara / Éxito)',
   },
   {
     id: 'azucar',
@@ -623,7 +639,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 3500,
     estimatedConsumptionPrice: 500,
     priceSource: 'market_verified',
-    unitDescription: 'Bolsa 1 kg de azúcar blanca o morena',
+    unitDescription: 'Bolsa 1 kg de azúcar blanca o morena (D1 / Ara / Éxito)',
   },
   {
     id: 'panela',
@@ -633,7 +649,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     estimatedPurchasePrice: 2500,
     estimatedConsumptionPrice: 800,
     priceSource: 'market_verified',
-    unitDescription: 'Unidad de panela cuadrada o redonda (aprox. 500g)',
+    unitDescription: 'Unidad de panela cuadrada o redonda aprox. 500g (D1 / Ara / Éxito)',
   },
   {
     id: 'cafe',
@@ -642,7 +658,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'pantry_staple',
     estimatedPurchasePrice: 6000,
     estimatedConsumptionPrice: 600,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bolsa 250g de café molido tradicional',
   },
   {
@@ -652,8 +668,8 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'pantry_staple',
     estimatedPurchasePrice: 4500,
     estimatedConsumptionPrice: 1500,
-    priceSource: 'market_verified',
-    unitDescription: 'Paquete de pastillas de chocolate para hervir (aprox. 250g)',
+    priceSource: 'reference_estimate',
+    unitDescription: 'Paquete de pastillas de chocolate para hervir aprox. 250g',
   },
   {
     id: 'hogao',
@@ -666,7 +682,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     unitDescription: 'Porción preparada de sofrito tradicional (cebolla + tomate + aliños)',
   },
 
-  /* ---------------- ESPECIAS & HIERBAS AROMÁTICAS (52-61) ---------------- */
+  /* ---------------- ESPECIAS & HIERBAS AROMÁTICAS (57-66) ---------------- */
   {
     id: 'pimienta',
     canonicalName: 'pimienta',
@@ -674,8 +690,8 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'spice_seasoning',
     estimatedPurchasePrice: 1200,
     estimatedConsumptionPrice: 150,
-    priceSource: 'market_verified',
-    unitDescription: 'Sobre comercial de pimienta molida (aprox. 20g-30g)',
+    priceSource: 'reference_estimate',
+    unitDescription: 'Sobre comercial de pimienta molida aprox. 20g-30g',
   },
   {
     id: 'comino',
@@ -684,8 +700,8 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'spice_seasoning',
     estimatedPurchasePrice: 1200,
     estimatedConsumptionPrice: 150,
-    priceSource: 'market_verified',
-    unitDescription: 'Sobre comercial de comino molido (aprox. 25g)',
+    priceSource: 'reference_estimate',
+    unitDescription: 'Sobre comercial de comino molido aprox. 25g',
   },
   {
     id: 'color',
@@ -694,7 +710,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'spice_seasoning',
     estimatedPurchasePrice: 1000,
     estimatedConsumptionPrice: 150,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Sobre comercial de condimento con color o achiote',
   },
   {
@@ -704,7 +720,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'spice_seasoning',
     estimatedPurchasePrice: 1000,
     estimatedConsumptionPrice: 150,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Sobre con hojas secas de laurel',
   },
   {
@@ -714,7 +730,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'spice_seasoning',
     estimatedPurchasePrice: 1000,
     estimatedConsumptionPrice: 150,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Sobre con tomillo seco o manojito fresco',
   },
   {
@@ -724,7 +740,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'spice_seasoning',
     estimatedPurchasePrice: 1200,
     estimatedConsumptionPrice: 150,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Sobre con orégano seco seleccionado',
   },
   {
@@ -734,7 +750,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'spice_seasoning',
     estimatedPurchasePrice: 1000,
     estimatedConsumptionPrice: 500,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Manojo de cilantro fresco de tienda de barrio o plaza',
   },
   {
@@ -744,7 +760,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'spice_seasoning',
     estimatedPurchasePrice: 1000,
     estimatedConsumptionPrice: 500,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Manojo de perejil fresco',
   },
   {
@@ -754,7 +770,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'spice_seasoning',
     estimatedPurchasePrice: 1500,
     estimatedConsumptionPrice: 300,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Sobre con astillas o polvo de canela',
   },
   {
@@ -764,11 +780,11 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'spice_seasoning',
     estimatedPurchasePrice: 1200,
     estimatedConsumptionPrice: 200,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Sobre con clavos de olor aromáticos',
   },
 
-  /* ---------------- CONDIMENTOS & SALSAS (62-66) ---------------- */
+  /* ---------------- CONDIMENTOS & SALSAS (67-71) ---------------- */
   {
     id: 'mayonesa',
     canonicalName: 'mayonesa',
@@ -776,7 +792,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'condiment',
     estimatedPurchasePrice: 4500,
     estimatedConsumptionPrice: 800,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Doypack 200g de mayonesa tradicional',
   },
   {
@@ -786,7 +802,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'condiment',
     estimatedPurchasePrice: 3500,
     estimatedConsumptionPrice: 800,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Doypack 200g de salsa de tomate',
   },
   {
@@ -796,7 +812,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'condiment',
     estimatedPurchasePrice: 3000,
     estimatedConsumptionPrice: 600,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Doypack 200g de mostaza',
   },
   {
@@ -806,7 +822,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'condiment',
     estimatedPurchasePrice: 3000,
     estimatedConsumptionPrice: 600,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Frasco 150ml de salsa negra o de soya',
   },
   {
@@ -816,11 +832,11 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'condiment',
     estimatedPurchasePrice: 2500,
     estimatedConsumptionPrice: 400,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Botella 500ml de vinagre blanco de cocina',
   },
 
-  /* ---------------- FRUTAS CULINARIAS COLOMBIANAS (67-73) ---------------- */
+  /* ---------------- FRUTAS CULINARIAS COLOMBIANAS (72-78) ---------------- */
   {
     id: 'limon',
     canonicalName: 'limon',
@@ -828,7 +844,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'fruit',
     estimatedPurchasePrice: 1200,
     estimatedConsumptionPrice: 600,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Bolsa pequeña o 2 limones tahití',
   },
   {
@@ -878,7 +894,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'fruit',
     estimatedPurchasePrice: 2000,
     estimatedConsumptionPrice: 1000,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: 'Gajo de 3-4 bananos criollos',
   },
   {
@@ -888,7 +904,7 @@ export const ingredientPriceCatalog: PriceRule[] = [
     category: 'fruit',
     estimatedPurchasePrice: 3000,
     estimatedConsumptionPrice: 1500,
-    priceSource: 'market_verified',
+    priceSource: 'reference_estimate',
     unitDescription: '2 unidades de manzana para ensaladas o postres',
   },
 ];
