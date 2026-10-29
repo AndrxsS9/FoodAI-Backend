@@ -40,7 +40,7 @@ REGLAS OBLIGATORIAS:
 
 16. Evita recetas excesivamente complejas.
 
-17. Si se proporciona un tiempo máximo de preparación, respétalo estrictamente. El campo totalMinutes es obligatorio y debe ser un entero positivo.
+17. Si se proporciona un tiempo máximo de preparación, respétalo estrictamente en TODAS y cada una de las recetas generadas (totalMinutes <= tiempo máximo). El campo totalMinutes es obligatorio y debe ser un entero positivo.
 
 18. Tiempos de preparación y cocción opcionales:
     - prepMinutes: tiempo estimado de alistamiento y preparación previa de ingredientes (lavar, pelar, picar).

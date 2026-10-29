@@ -578,4 +578,91 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
     expect(result.recipes[0].prepMinutes).toBeUndefined();
     expect(result.recipes[0].cookMinutes).toBeUndefined();
   });
+
+  it('21. con maxMinutes y 3 recetas devueltas donde 1 excede maxMinutes: filtra únicamente la excedente y retorna las 2 válidas', async () => {
+    const threeRecipesPayload = {
+      recipes: [
+        {
+          name: 'Ensalada rápida',
+          description: 'Cumple el tiempo',
+          totalMinutes: 15,
+          ingredients: [{ name: 'tomate', quantity: 1, unit: 'unidad' }],
+          steps: ['Picar tomate.'],
+        },
+        {
+          name: 'Huevo tibio',
+          description: 'Cumple el tiempo',
+          totalMinutes: 10,
+          ingredients: [{ name: 'huevo', quantity: 2, unit: 'unidad' }],
+          steps: ['Hervir huevo 6 minutos.'],
+        },
+        {
+          name: 'Frijolada campesina',
+          description: 'Excede el tiempo',
+          totalMinutes: 60,
+          ingredients: [{ name: 'frijol', quantity: 200, unit: 'g' }],
+          steps: ['Cocinar frijoles en olla a presión.'],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(threeRecipesPayload),
+    } as any);
+
+    const promise = generateRecipeRecommendations({
+      ...sampleRecommendationRequest,
+      maxMinutes: 30,
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.recipes).toHaveLength(2);
+    expect(result.recipes.map((r) => r.name)).toEqual([
+      'Ensalada rápida',
+      'Huevo tibio',
+    ]);
+  });
+
+  it('22. con maxMinutes y 3 recetas devueltas donde 2 exceden maxMinutes: filtra ambas excedentes y retorna la única válida', async () => {
+    const threeRecipesPayload = {
+      recipes: [
+        {
+          name: 'Sándwich caliente',
+          description: 'Cumple el tiempo',
+          totalMinutes: 10,
+          ingredients: [{ name: 'huevo', quantity: 1, unit: 'unidad' }],
+          steps: ['Armar sándwich.'],
+        },
+        {
+          name: 'Pollo al horno',
+          description: 'Excede el tiempo',
+          totalMinutes: 45,
+          ingredients: [{ name: 'pollo', quantity: 300, unit: 'g' }],
+          steps: ['Hornear 45 minutos.'],
+        },
+        {
+          name: 'Guiso de carne',
+          description: 'Excede el tiempo',
+          totalMinutes: 50,
+          ingredients: [{ name: 'carne', quantity: 250, unit: 'g' }],
+          steps: ['Cocinar a fuego lento.'],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(threeRecipesPayload),
+    } as any);
+
+    const promise = generateRecipeRecommendations({
+      ...sampleRecommendationRequest,
+      maxMinutes: 20,
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.recipes).toHaveLength(1);
+    expect(result.recipes[0].name).toBe('Sándwich caliente');
+  });
 });
