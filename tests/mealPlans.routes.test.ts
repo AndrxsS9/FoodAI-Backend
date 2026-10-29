@@ -1097,4 +1097,88 @@ describe('POST /api/meal-plans/generate', () => {
     expect(response.status).toBe(200);
     expect(requestPayload).toEqual(expectedCopy);
   });
+
+  it('debe preservar metadatos de tiempo enriquecidos (prepMinutes, cookMinutes, stepDurations) en cada receta del plan', async () => {
+    mockedBuildRecipeRecommendations.mockResolvedValue({
+      recipes: [
+        {
+          name: 'Día 1 - Pollo con papas',
+          description: 'Receta completa día 1',
+          totalMinutes: 35,
+          prepMinutes: 10,
+          cookMinutes: 25,
+          stepDurations: [
+            { stepIndex: 0, minutes: 10, action: 'preparar' },
+            { stepIndex: 1, minutes: 25, action: 'hornear' },
+          ],
+          ingredients: [{ name: 'pollo', quantity: 300, unit: 'g' }],
+          steps: ['Preparar el pollo.', 'Hornear por 25 minutos.'],
+          availableIngredients: [{ name: 'pollo', quantity: 300, unit: 'g' }],
+          missingIngredients: [],
+          estimatedMissingCost: 0,
+          budgetRemaining: 20000,
+          withinBudget: true,
+          convenience: 95,
+          reason: 'Aprovecha la despensa.',
+        },
+        {
+          name: 'Día 2 - Arroz con huevo',
+          description: 'Receta rápida día 2',
+          totalMinutes: 20,
+          prepMinutes: 5,
+          cookMinutes: 15,
+          stepDurations: [
+            { stepIndex: 0, minutes: 5, action: 'medir' },
+            { stepIndex: 1, minutes: 15, action: 'cocer' },
+          ],
+          ingredients: [{ name: 'arroz', quantity: 200, unit: 'g' }],
+          steps: ['Medir el arroz.', 'Cocer en agua 15 minutos.'],
+          availableIngredients: [{ name: 'arroz', quantity: 200, unit: 'g' }],
+          missingIngredients: [],
+          estimatedMissingCost: 0,
+          budgetRemaining: 20000,
+          withinBudget: true,
+          convenience: 95,
+          reason: 'Aprovecha la despensa.',
+        },
+        {
+          name: 'Día 3 - Ensalada fresca con aguacate',
+          description: 'Receta fresca día 3',
+          totalMinutes: 10,
+          prepMinutes: 10,
+          cookMinutes: 0,
+          stepDurations: [
+            { stepIndex: 0, minutes: 10, action: 'picar y mezclar' },
+          ],
+          ingredients: [{ name: 'aguacate', quantity: 1, unit: 'unidad' }],
+          steps: ['Picar y mezclar.'],
+          availableIngredients: [{ name: 'aguacate', quantity: 1, unit: 'unidad' }],
+          missingIngredients: [],
+          estimatedMissingCost: 0,
+          budgetRemaining: 20000,
+          withinBudget: true,
+          convenience: 95,
+          reason: 'Aprovecha la despensa.',
+        },
+      ],
+    });
+
+    const response = await request(app)
+      .post('/api/meal-plans/generate')
+      .send(validRequest);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.days).toHaveLength(3);
+
+    const day1Recipe = response.body.data.days[0].recipe;
+    expect(day1Recipe.prepMinutes).toBe(10);
+    expect(day1Recipe.cookMinutes).toBe(25);
+    expect(day1Recipe.stepDurations).toHaveLength(2);
+    expect(day1Recipe.stepDurations[1].action).toBe('hornear');
+
+    const day3Recipe = response.body.data.days[2].recipe;
+    expect(day3Recipe.prepMinutes).toBe(10);
+    expect(day3Recipe.cookMinutes).toBe(0);
+    expect(day3Recipe.stepDurations[0].action).toBe('picar y mezclar');
+  });
 });
