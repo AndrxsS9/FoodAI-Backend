@@ -13,7 +13,10 @@ import {
   GEMINI_RECIPE_TIMEOUT_MS,
   GEMINI_TIMEOUT_MS,
 } from '../src/services/gemini/geminiTimeout';
-import { generateRecipeRecommendations } from '../src/services/gemini/recipe.service';
+import {
+  generateRecipeRecommendations,
+  sanitizeRecipeTimings,
+} from '../src/services/gemini/recipe.service';
 import { AppError } from '../src/utils/errors';
 
 const mockedCreate = vi.mocked(geminiClient.interactions.create);
@@ -420,5 +423,159 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
 
     expect(result.recipes[0].stepDurations).toHaveLength(1);
     expect(result.recipes[0].stepDurations?.[0].stepIndex).toBe(0);
+  });
+
+  it('16. sanitizeRecipeTimings: si prepMinutes + cookMinutes supera maxMinutes, omite metadata opcional sin inflar totalMinutes ni fabricar tiempos menores', () => {
+    const rawRecipe = {
+      name: 'Sopa rápida',
+      description: 'Sopa casera',
+      totalMinutes: 20,
+      prepMinutes: 15,
+      cookMinutes: 15,
+      ingredients: [{ name: 'agua', quantity: 500, unit: 'ml' as const }],
+      steps: ['Hervir agua y servir.'],
+    };
+
+    const sanitized = sanitizeRecipeTimings(rawRecipe, 20);
+
+    expect(sanitized.totalMinutes).toBe(20);
+    expect(sanitized.prepMinutes).toBeUndefined();
+    expect(sanitized.cookMinutes).toBeUndefined();
+  });
+
+  it('17. sanitizeRecipeTimings: valida coherencia de stepDurations descartando duraciones individuales excesivas o suma incoherente', () => {
+    const recipeWithExcessiveSteps = {
+      name: 'Guiso de carne',
+      description: 'Guiso tradicional',
+      totalMinutes: 30,
+      ingredients: [{ name: 'carne', quantity: 200, unit: 'g' as const }],
+      steps: ['Picar carne.', 'Cocinar a fuego lento.'],
+      stepDurations: [
+        { stepIndex: 0, minutes: 10, action: 'picar' },
+        { stepIndex: 1, minutes: 50, action: 'cocinar' },
+      ],
+    };
+
+    const sanitized = sanitizeRecipeTimings(recipeWithExcessiveSteps, 30);
+    expect(sanitized.stepDurations).toHaveLength(1);
+    expect(sanitized.stepDurations?.[0].stepIndex).toBe(0);
+
+    const recipeWithIncoherentSum = {
+      name: 'Salteado',
+      description: 'Salteado rápido',
+      totalMinutes: 20,
+      ingredients: [{ name: 'zanahoria', quantity: 1, unit: 'unidad' as const }],
+      steps: ['Paso 1', 'Paso 2'],
+      stepDurations: [
+        { stepIndex: 0, minutes: 12, action: 'cortar' },
+        { stepIndex: 1, minutes: 15, action: 'saltear' },
+      ],
+    };
+    const sanitizedSum = sanitizeRecipeTimings(recipeWithIncoherentSum, 20);
+    expect(sanitizedSum.stepDurations).toBeUndefined();
+  });
+
+  it('18. generateRecipeRecommendations con maxMinutes: filtra recetas que excedan el límite solicitado', async () => {
+    const mixedPayload = {
+      recipes: [
+        {
+          name: 'Ensalada rápida',
+          description: 'Receta dentro del límite',
+          totalMinutes: 20,
+          ingredients: [{ name: 'tomate', quantity: 1, unit: 'unidad' }],
+          steps: ['Picar y servir.'],
+        },
+        {
+          name: 'Frijoles con garra',
+          description: 'Receta que excede el límite',
+          totalMinutes: 60,
+          ingredients: [{ name: 'frijol', quantity: 300, unit: 'g' }],
+          steps: ['Remojar y cocinar por horas.'],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(mixedPayload),
+    } as any);
+
+    const promise = generateRecipeRecommendations({
+      ...sampleRecommendationRequest,
+      maxMinutes: 30,
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.recipes).toHaveLength(1);
+    expect(result.recipes[0].name).toBe('Ensalada rápida');
+    expect(result.recipes[0].totalMinutes).toBe(20);
+  });
+
+  it('19. generateRecipeRecommendations con maxMinutes: lanza RECIPE_TIME_LIMIT_EXCEEDED (502) si ninguna receta cumple maxMinutes', async () => {
+    const overTimePayload = {
+      recipes: [
+        {
+          name: 'Sancocho trifásico',
+          description: 'Cocción lenta',
+          totalMinutes: 90,
+          ingredients: [{ name: 'pollo', quantity: 500, unit: 'g' }],
+          steps: ['Hervir todo por largo tiempo.'],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(overTimePayload),
+    } as any);
+
+    const promise = generateRecipeRecommendations({
+      ...sampleRecommendationRequest,
+      maxMinutes: 30,
+    });
+    const assertion = expect(promise).rejects.toSatisfy((err: unknown) => {
+      return (
+        err instanceof AppError &&
+        err.statusCode === 502 &&
+        err.code === 'RECIPE_TIME_LIMIT_EXCEEDED'
+      );
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    await assertion;
+  });
+
+  it('20. generateRecipeRecommendations con maxMinutes e inconsistencia en Gemini: omite metadata inconsistente y conserva receta dentro del límite', async () => {
+    const payloadWithInconsistentTimings = {
+      recipes: [
+        {
+          name: 'Omelette de espinaca',
+          description: 'Rápido y saludable',
+          totalMinutes: 20,
+          prepMinutes: 15,
+          cookMinutes: 15,
+          ingredients: [
+            { name: 'huevo', quantity: 2, unit: 'unidad' },
+            { name: 'espinaca', quantity: 50, unit: 'g' },
+          ],
+          steps: ['Batir huevos.', 'Cocinar en sartén 5 minutos.'],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(payloadWithInconsistentTimings),
+    } as any);
+
+    const promise = generateRecipeRecommendations({
+      ...sampleRecommendationRequest,
+      maxMinutes: 20,
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.recipes).toHaveLength(1);
+    expect(result.recipes[0].name).toBe('Omelette de espinaca');
+    expect(result.recipes[0].totalMinutes).toBe(20);
+    expect(result.recipes[0].prepMinutes).toBeUndefined();
+    expect(result.recipes[0].cookMinutes).toBeUndefined();
   });
 });

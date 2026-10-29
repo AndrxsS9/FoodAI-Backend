@@ -11,37 +11,116 @@ import {
   type GeneratedRecipe,
   type GeneratedRecipes,
   type RecipeRecommendationRequest,
+  type StepDuration,
 } from '../../schemas/recipe.schema';
 
 import { buildRecipeRecommendationPrompt } from '../../prompts/recommendRecipes.prompt';
 
 import { AppError } from '../../utils/errors';
 
-export function sanitizeRecipeTimings(recipe: GeneratedRecipe): GeneratedRecipe {
-  let { totalMinutes, prepMinutes, cookMinutes, stepDurations } = recipe;
+export function sanitizeRecipeTimings(
+  recipe: GeneratedRecipe,
+  maxMinutes?: number,
+): GeneratedRecipe {
+  let totalMinutes = recipe.totalMinutes;
+  const { prepMinutes, cookMinutes, stepDurations } = recipe;
 
-  if (typeof prepMinutes === 'number' && typeof cookMinutes === 'number') {
-    if (prepMinutes + cookMinutes > totalMinutes) {
-      totalMinutes = prepMinutes + cookMinutes;
-    }
-  } else if (typeof prepMinutes === 'number' && prepMinutes > totalMinutes) {
-    totalMinutes = prepMinutes;
-  } else if (typeof cookMinutes === 'number' && cookMinutes > totalMinutes) {
-    totalMinutes = cookMinutes;
-  }
-
-  let sanitizedStepDurations = stepDurations;
+  // 1. Validar y filtrar stepDurations:
+  // - Índices válidos dentro del arreglo steps (0 <= stepIndex < steps.length)
+  // - Duración coherente individual (entero positivo <= totalMinutes y <= maxMinutes si está definido)
+  // - Duración coherente acumulada (suma de pasos <= totalMinutes y <= maxMinutes si está definido)
+  let sanitizedStepDurations: StepDuration[] | undefined = undefined;
   if (Array.isArray(stepDurations)) {
-    sanitizedStepDurations = stepDurations.filter(
-      (sd) => sd.stepIndex >= 0 && sd.stepIndex < recipe.steps.length,
+    const validDurations = stepDurations.filter((sd) => {
+      if (sd.stepIndex < 0 || sd.stepIndex >= recipe.steps.length) {
+        return false;
+      }
+      if (typeof sd.minutes === 'number') {
+        if (
+          sd.minutes <= 0 ||
+          !Number.isInteger(sd.minutes) ||
+          sd.minutes > totalMinutes
+        ) {
+          return false;
+        }
+        if (typeof maxMinutes === 'number' && sd.minutes > maxMinutes) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const sumStepMinutes = validDurations.reduce(
+      (acc, sd) => acc + (typeof sd.minutes === 'number' ? sd.minutes : 0),
+      0,
     );
+
+    const isSumCoherent =
+      sumStepMinutes <= totalMinutes &&
+      (typeof maxMinutes !== 'number' || sumStepMinutes <= maxMinutes);
+
+    if (isSumCoherent && validDurations.length > 0) {
+      sanitizedStepDurations = validDurations;
+    }
   }
+
+  // 2. Validar prepMinutes y cookMinutes como enteros no negativos
+  const hasValidPrep =
+    typeof prepMinutes === 'number' &&
+    Number.isInteger(prepMinutes) &&
+    prepMinutes >= 0;
+
+  const hasValidCook =
+    typeof cookMinutes === 'number' &&
+    Number.isInteger(cookMinutes) &&
+    cookMinutes >= 0;
+
+  let finalPrep = hasValidPrep ? prepMinutes : undefined;
+  let finalCook = hasValidCook ? cookMinutes : undefined;
+
+  // 3. Manejo seguro de consistencia temporal:
+  // Si ambos están definidos y su suma supera totalMinutes:
+  if (finalPrep !== undefined && finalCook !== undefined) {
+    const combinedMinutes = finalPrep + finalCook;
+
+    if (combinedMinutes > totalMinutes) {
+      if (typeof maxMinutes === 'number' && combinedMinutes > maxMinutes) {
+        // Inconsistencia: la suma de tiempos opcionales superaría maxMinutes solicitado por el usuario.
+        // No fabricamos tiempos artificialmente menores (no acortamos prep ni cook).
+        // Manejamos la metadata opcional inconsistente omitiéndola de forma segura,
+        // preservando totalMinutes original de la receta.
+        finalPrep = undefined;
+        finalCook = undefined;
+      } else {
+        // Si no se solicitó maxMinutes o la suma no supera maxMinutes,
+        // sincronizamos totalMinutes con el tiempo real combinado de preparación y cocción.
+        totalMinutes = combinedMinutes;
+      }
+    }
+  } else if (finalPrep !== undefined && finalPrep > totalMinutes) {
+    if (typeof maxMinutes === 'number' && finalPrep > maxMinutes) {
+      finalPrep = undefined;
+    } else {
+      totalMinutes = finalPrep;
+    }
+  } else if (finalCook !== undefined && finalCook > totalMinutes) {
+    if (typeof maxMinutes === 'number' && finalCook > maxMinutes) {
+      finalCook = undefined;
+    } else {
+      totalMinutes = finalCook;
+    }
+  }
+
+  const cleanedRecipe = { ...recipe };
+  delete cleanedRecipe.prepMinutes;
+  delete cleanedRecipe.cookMinutes;
+  delete cleanedRecipe.stepDurations;
 
   return {
-    ...recipe,
+    ...cleanedRecipe,
     totalMinutes,
-    ...(prepMinutes !== undefined ? { prepMinutes } : {}),
-    ...(cookMinutes !== undefined ? { cookMinutes } : {}),
+    ...(finalPrep !== undefined ? { prepMinutes: finalPrep } : {}),
+    ...(finalCook !== undefined ? { cookMinutes: finalCook } : {}),
     ...(sanitizedStepDurations !== undefined ? { stepDurations: sanitizedStepDurations } : {}),
   };
 }
@@ -125,10 +204,33 @@ export async function generateRecipeRecommendations(
       );
     }
 
-    const sanitizedRecipes = validation.data.recipes.map(sanitizeRecipeTimings);
+    const sanitizedRecipes = validation.data.recipes.map((r) =>
+      sanitizeRecipeTimings(r, input.maxMinutes),
+    );
+
+    // Validación estricta de maxMinutes:
+    // Nunca retornar silenciosamente recetas que excedan el límite solicitado por el usuario.
+    let filteredRecipes = sanitizedRecipes;
+    if (typeof input.maxMinutes === 'number') {
+      filteredRecipes = sanitizedRecipes.filter(
+        (recipe) => recipe.totalMinutes <= input.maxMinutes!,
+      );
+
+      if (filteredRecipes.length === 0) {
+        console.warn(
+          `⚠️ Ninguna de las recetas generadas por Gemini cumple con maxMinutes (${input.maxMinutes}).`,
+        );
+
+        throw new AppError(
+          `Las recetas generadas exceden el tiempo máximo solicitado de ${input.maxMinutes} minutos.`,
+          502,
+          'RECIPE_TIME_LIMIT_EXCEEDED',
+        );
+      }
+    }
 
     return {
-      recipes: sanitizedRecipes,
+      recipes: filteredRecipes,
     };
   } catch (error) {
     if (error instanceof AppError) {
