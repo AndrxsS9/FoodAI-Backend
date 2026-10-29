@@ -43,12 +43,26 @@ export const recipeIngredientSchema = z.object({
   ]),
 });
 
+export const stepDurationSchema = z.object({
+  stepIndex: z.number().int().nonnegative(),
+
+  minutes: z.number().int().positive().optional(),
+
+  action: z.string().min(1).optional(),
+});
+
 export const generatedRecipeSchema = z.object({
   name: z.string().min(1),
 
   description: z.string().min(1),
 
   totalMinutes: z.number().int().positive(),
+
+  prepMinutes: z.number().int().nonnegative().optional(),
+
+  cookMinutes: z.number().int().nonnegative().optional(),
+
+  stepDurations: z.array(stepDurationSchema).optional(),
 
   ingredients: z
     .array(recipeIngredientSchema)
@@ -105,6 +119,9 @@ export type RecipeRecommendationRequest =
 export type RecipeIngredient =
   z.infer<typeof recipeIngredientSchema>;
 
+export type StepDuration =
+  z.infer<typeof stepDurationSchema>;
+
 export type GeneratedRecipe =
   z.infer<typeof generatedRecipeSchema>;
 
@@ -148,6 +165,46 @@ export const generatedRecipesJsonSchema = {
             type: 'number',
             description:
               'Tiempo total estimado de preparación en minutos.',
+          },
+
+          prepMinutes: {
+            type: 'number',
+            description:
+              'Tiempo estimado de preparación previa de ingredientes en minutos (opcional).',
+          },
+
+          cookMinutes: {
+            type: 'number',
+            description:
+              'Tiempo estimado de cocción activa o pasiva en minutos (opcional).',
+          },
+
+          stepDurations: {
+            type: 'array',
+            description:
+              'Estimación opcional de duración por paso para acciones como hervir, freír, sofreír, hornear.',
+            items: {
+              type: 'object',
+              properties: {
+                stepIndex: {
+                  type: 'number',
+                  description:
+                    'Índice base 0 del paso correspondiente en el arreglo steps.',
+                },
+                minutes: {
+                  type: 'number',
+                  description:
+                    'Duración estimada en minutos de este paso.',
+                },
+                action: {
+                  type: 'string',
+                  description:
+                    'Acción principal (ej. hervir, sofreír, dorar, hornear, reposar).',
+                },
+              },
+              required: ['stepIndex'],
+              additionalProperties: false,
+            },
           },
 
           ingredients: {

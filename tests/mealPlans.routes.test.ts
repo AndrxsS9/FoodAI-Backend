@@ -802,7 +802,11 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
-      .send(validRequest);
+      .send({
+        pantry: validRequest.pantry,
+        budget: validRequest.budget,
+        servings: validRequest.servings,
+      });
 
     expect(response.status).toBe(502);
 
@@ -1096,5 +1100,207 @@ describe('POST /api/meal-plans/generate', () => {
 
     expect(response.status).toBe(200);
     expect(requestPayload).toEqual(expectedCopy);
+  });
+
+  it('debe preservar metadatos de tiempo enriquecidos (prepMinutes, cookMinutes, stepDurations) en cada receta del plan', async () => {
+    mockedBuildRecipeRecommendations.mockResolvedValue({
+      recipes: [
+        {
+          name: 'Día 1 - Pollo con papas',
+          description: 'Receta completa día 1',
+          totalMinutes: 35,
+          prepMinutes: 10,
+          cookMinutes: 25,
+          stepDurations: [
+            { stepIndex: 0, minutes: 10, action: 'preparar' },
+            { stepIndex: 1, minutes: 25, action: 'hornear' },
+          ],
+          ingredients: [{ name: 'pollo', quantity: 300, unit: 'g' }],
+          steps: ['Preparar el pollo.', 'Hornear por 25 minutos.'],
+          availableIngredients: [{ name: 'pollo', quantity: 300, unit: 'g' }],
+          missingIngredients: [],
+          estimatedMissingCost: 0,
+          budgetRemaining: 20000,
+          withinBudget: true,
+          convenience: 95,
+          reason: 'Aprovecha la despensa.',
+        },
+        {
+          name: 'Día 2 - Arroz con huevo',
+          description: 'Receta rápida día 2',
+          totalMinutes: 20,
+          prepMinutes: 5,
+          cookMinutes: 15,
+          stepDurations: [
+            { stepIndex: 0, minutes: 5, action: 'medir' },
+            { stepIndex: 1, minutes: 15, action: 'cocer' },
+          ],
+          ingredients: [{ name: 'arroz', quantity: 200, unit: 'g' }],
+          steps: ['Medir el arroz.', 'Cocer en agua 15 minutos.'],
+          availableIngredients: [{ name: 'arroz', quantity: 200, unit: 'g' }],
+          missingIngredients: [],
+          estimatedMissingCost: 0,
+          budgetRemaining: 20000,
+          withinBudget: true,
+          convenience: 95,
+          reason: 'Aprovecha la despensa.',
+        },
+        {
+          name: 'Día 3 - Ensalada fresca con aguacate',
+          description: 'Receta fresca día 3',
+          totalMinutes: 10,
+          prepMinutes: 10,
+          cookMinutes: 0,
+          stepDurations: [
+            { stepIndex: 0, minutes: 10, action: 'picar y mezclar' },
+          ],
+          ingredients: [{ name: 'aguacate', quantity: 1, unit: 'unidad' }],
+          steps: ['Picar y mezclar.'],
+          availableIngredients: [{ name: 'aguacate', quantity: 1, unit: 'unidad' }],
+          missingIngredients: [],
+          estimatedMissingCost: 0,
+          budgetRemaining: 20000,
+          withinBudget: true,
+          convenience: 95,
+          reason: 'Aprovecha la despensa.',
+        },
+      ],
+    });
+
+    const response = await request(app)
+      .post('/api/meal-plans/generate')
+      .send(validRequest);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.days).toHaveLength(3);
+
+    const day1Recipe = response.body.data.days[0].recipe;
+    expect(day1Recipe.prepMinutes).toBe(10);
+    expect(day1Recipe.cookMinutes).toBe(25);
+    expect(day1Recipe.stepDurations).toHaveLength(2);
+    expect(day1Recipe.stepDurations[1].action).toBe('hornear');
+
+    const day3Recipe = response.body.data.days[2].recipe;
+    expect(day3Recipe.prepMinutes).toBe(10);
+    expect(day3Recipe.cookMinutes).toBe(0);
+    expect(day3Recipe.stepDurations[0].action).toBe('picar y mezclar');
+  });
+
+  it('cuando 1 de las 3 recetas excede maxMinutes (quedan 2), responde 502 con INSUFFICIENT_RECIPES_FOR_PLAN y mensaje claro y accionable', async () => {
+    mockedBuildRecipeRecommendations.mockResolvedValueOnce({
+      recipes: [
+        {
+          name: 'Arroz con huevo',
+          description: 'Rápido',
+          totalMinutes: 15,
+          ingredients: [{ name: 'arroz', quantity: 200, unit: 'g' }],
+          steps: ['Cocinar arroz y freír huevo.'],
+          availableIngredients: [],
+          missingIngredients: [],
+          estimatedMissingCost: 0,
+          budgetRemaining: 20000,
+          withinBudget: true,
+          convenience: 95,
+          reason: 'Aprovecha despensa.',
+        },
+        {
+          name: 'Huevos pericos',
+          description: 'Rápido 2',
+          totalMinutes: 10,
+          ingredients: [{ name: 'huevo', quantity: 2, unit: 'unidad' }],
+          steps: ['Batir y sofreír.'],
+          availableIngredients: [],
+          missingIngredients: [],
+          estimatedMissingCost: 0,
+          budgetRemaining: 20000,
+          withinBudget: true,
+          convenience: 90,
+          reason: 'Fácil.',
+        },
+      ],
+    });
+
+    const response = await request(app)
+      .post('/api/meal-plans/generate')
+      .send({
+        ...validRequest,
+        maxMinutes: 20,
+      });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({
+      success: false,
+      error: {
+        code: 'INSUFFICIENT_RECIPES_FOR_PLAN',
+        message:
+          'No se generaron suficientes recetas que cumplan con el tiempo máximo de 20 minutos para construir un plan de tres días (2 de 3 requeridas). Te sugerimos aumentar el tiempo límite disponible o ajustar los ingredientes de la despensa.',
+      },
+    });
+  });
+
+  it('cuando 2 de las 3 recetas exceden maxMinutes (queda 1), responde 502 con INSUFFICIENT_RECIPES_FOR_PLAN y mensaje claro y accionable', async () => {
+    mockedBuildRecipeRecommendations.mockResolvedValueOnce({
+      recipes: [
+        {
+          name: 'Arepa con huevo',
+          description: 'Desayuno rápido',
+          totalMinutes: 15,
+          ingredients: [{ name: 'huevo', quantity: 1, unit: 'unidad' }],
+          steps: ['Preparar arepa y rellenar con huevo.'],
+          availableIngredients: [],
+          missingIngredients: [],
+          estimatedMissingCost: 0,
+          budgetRemaining: 20000,
+          withinBudget: true,
+          convenience: 90,
+          reason: 'Rápido.',
+        },
+      ],
+    });
+
+    const response = await request(app)
+      .post('/api/meal-plans/generate')
+      .send({
+        ...validRequest,
+        maxMinutes: 15,
+      });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({
+      success: false,
+      error: {
+        code: 'INSUFFICIENT_RECIPES_FOR_PLAN',
+        message:
+          'No se generaron suficientes recetas que cumplan con el tiempo máximo de 15 minutos para construir un plan de tres días (1 de 3 requeridas). Te sugerimos aumentar el tiempo límite disponible o ajustar los ingredientes de la despensa.',
+      },
+    });
+  });
+
+  it('cuando las 3 recetas exceden maxMinutes (0 válidas), responde predeciblemente 502 con INSUFFICIENT_RECIPES_FOR_PLAN y mensaje claro', async () => {
+    const { AppError } = await import('../src/utils/errors');
+    mockedBuildRecipeRecommendations.mockRejectedValueOnce(
+      new AppError(
+        'Las recetas generadas exceden el tiempo máximo solicitado de 15 minutos.',
+        502,
+        'RECIPE_TIME_LIMIT_EXCEEDED',
+      ),
+    );
+
+    const response = await request(app)
+      .post('/api/meal-plans/generate')
+      .send({
+        ...validRequest,
+        maxMinutes: 15,
+      });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({
+      success: false,
+      error: {
+        code: 'INSUFFICIENT_RECIPES_FOR_PLAN',
+        message:
+          'No se generaron suficientes recetas que cumplan con el tiempo máximo de 15 minutos para construir un plan de tres días (0 de 3 requeridas). Te sugerimos aumentar el tiempo límite disponible o ajustar los ingredientes de la despensa.',
+      },
+    });
   });
 });

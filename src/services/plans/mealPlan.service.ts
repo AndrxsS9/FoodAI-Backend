@@ -254,18 +254,42 @@ export async function buildMealPlan(
    * Reutilizamos el motor de recomendaciones
    * que FoodAI ya tiene.
    */
-  const recommendationResult =
-    await buildRecipeRecommendations({
-      pantry: input.pantry,
-      budget: input.budget,
-      servings: input.servings,
-      maxMinutes: input.maxMinutes,
-    });
+  let recommendationResult;
+  try {
+    recommendationResult =
+      await buildRecipeRecommendations({
+        pantry: input.pantry,
+        budget: input.budget,
+        servings: input.servings,
+        maxMinutes: input.maxMinutes,
+      });
+  } catch (error) {
+    if (
+      error instanceof AppError &&
+      error.code === 'RECIPE_TIME_LIMIT_EXCEEDED'
+    ) {
+      throw new AppError(
+        `No se generaron suficientes recetas que cumplan con el tiempo máximo de ${input.maxMinutes} minutos para construir un plan de tres días (0 de 3 requeridas). Te sugerimos aumentar el tiempo límite disponible o ajustar los ingredientes de la despensa.`,
+        502,
+        'INSUFFICIENT_RECIPES_FOR_PLAN',
+      );
+    }
+
+    throw error;
+  }
 
   if (
     recommendationResult.recipes.length <
     3
   ) {
+    if (typeof input.maxMinutes === 'number') {
+      throw new AppError(
+        `No se generaron suficientes recetas que cumplan con el tiempo máximo de ${input.maxMinutes} minutos para construir un plan de tres días (${recommendationResult.recipes.length} de 3 requeridas). Te sugerimos aumentar el tiempo límite disponible o ajustar los ingredientes de la despensa.`,
+        502,
+        'INSUFFICIENT_RECIPES_FOR_PLAN',
+      );
+    }
+
     throw new AppError(
       'No se generaron suficientes recetas para construir un plan de tres días.',
       502,

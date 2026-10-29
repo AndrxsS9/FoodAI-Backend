@@ -7,6 +7,10 @@ import {
 import {
   estimateIngredientCost,
   estimateMissingIngredientsCost,
+  getIngredientPriceDetails,
+  ingredientPriceCatalog,
+  UNKNOWN_INGREDIENT_CONSUMPTION_COST,
+  UNKNOWN_INGREDIENT_ESTIMATED_COST,
 } from '../src/services/pricing/ingredientPrice.service';
 
 import type {
@@ -26,6 +30,80 @@ function buildIngredient(
 }
 
 describe('ingredientPrice.service', () => {
+  describe('Catálogo y estructura de datos de precios colombianos', () => {
+    it('debe contener al menos 65 ingredientes colombianos comúnmente utilizados', () => {
+      expect(ingredientPriceCatalog.length).toBeGreaterThanOrEqual(65);
+    });
+
+    it('cada ingrediente del catálogo debe tener estructura válida y documentada', () => {
+      for (const item of ingredientPriceCatalog) {
+        expect(typeof item.id).toBe('string');
+        expect(item.id.length).toBeGreaterThan(0);
+        expect(typeof item.canonicalName).toBe('string');
+        expect(Array.isArray(item.aliases)).toBe(true);
+        expect(item.aliases.length).toBeGreaterThan(0);
+        expect(typeof item.estimatedPurchasePrice).toBe('number');
+        expect(item.estimatedPurchasePrice).toBeGreaterThanOrEqual(0);
+        expect(typeof item.estimatedConsumptionPrice).toBe('number');
+        expect(item.estimatedConsumptionPrice).toBeGreaterThanOrEqual(0);
+        expect(['market_verified', 'reference_estimate']).toContain(item.priceSource);
+        expect(typeof item.unitDescription).toBe('string');
+      }
+    });
+
+    it('distingue ingredientes con precio de mercado verificado frente a estimaciones de referencia', () => {
+      const arroz = getIngredientPriceDetails('arroz');
+      const lechuga = getIngredientPriceDetails('lechuga');
+
+      expect(arroz?.priceSource).toBe('market_verified');
+      expect(lechuga?.priceSource).toBe('reference_estimate');
+    });
+
+    it('el catálogo contiene exactamente 78 ingredientes con fuentes documentadas y transparentes', () => {
+      expect(ingredientPriceCatalog).toHaveLength(78);
+
+      const verified = ingredientPriceCatalog.filter(
+        (item) => item.priceSource === 'market_verified',
+      );
+      const reference = ingredientPriceCatalog.filter(
+        (item) => item.priceSource === 'reference_estimate',
+      );
+
+      expect(verified).toHaveLength(19);
+      expect(reference).toHaveLength(59);
+
+      const verifiedIds = verified.map((i) => i.id);
+      expect(verifiedIds).toContain('arroz');
+      expect(verifiedIds).toContain('huevo');
+      expect(verifiedIds).toContain('leche');
+      expect(verifiedIds).toContain('aceite');
+      expect(verifiedIds).toContain('sal');
+      expect(verifiedIds).toContain('agua');
+
+      const referenceIds = reference.map((i) => i.id);
+      expect(referenceIds).toContain('lechuga');
+      expect(referenceIds).toContain('cilantro');
+      expect(referenceIds).toContain('auyama');
+      expect(referenceIds).toContain('oregano');
+    });
+
+    it('documenta que el precio de compra representa paquetes comerciales de referencia y no siempre es proporcional a la porción', () => {
+      const sal = getIngredientPriceDetails('sal');
+      expect(sal?.estimatedPurchasePrice).toBe(1500);
+      expect(sal?.estimatedConsumptionPrice).toBe(100);
+      expect(sal?.estimatedPurchasePrice).toBeGreaterThan(sal?.estimatedConsumptionPrice!);
+
+      const aceite = getIngredientPriceDetails('aceite');
+      expect(aceite?.estimatedPurchasePrice).toBe(7000);
+      expect(aceite?.estimatedConsumptionPrice).toBe(500);
+      expect(aceite?.estimatedPurchasePrice).toBeGreaterThan(aceite?.estimatedConsumptionPrice!);
+
+      const agua = getIngredientPriceDetails('agua');
+      expect(agua?.estimatedPurchasePrice).toBe(0);
+      expect(agua?.estimatedConsumptionPrice).toBe(0);
+    });
+  });
+
   describe('estimateIngredientCost', () => {
     it('1. Precio de ingrediente conocido por nombre principal: tomate → 1500', () => {
       const ingredient = buildIngredient('tomate');
@@ -137,12 +215,12 @@ describe('ingredientPrice.service', () => {
       ).toBe(2000);
     });
 
-    it('18. Ingredientes sin regla de precio (aguacate, palta, maiz, choclo) usan fallback 5000 sin inventar valores', () => {
-      expect(estimateIngredientCost(buildIngredient('aguacate'))).toBe(5000);
-      expect(estimateIngredientCost(buildIngredient('palta'))).toBe(5000);
-      expect(estimateIngredientCost(buildIngredient('paltas'))).toBe(5000);
-      expect(estimateIngredientCost(buildIngredient('maiz'))).toBe(5000);
-      expect(estimateIngredientCost(buildIngredient('choclo'))).toBe(5000);
+    it('18. Ingredientes sin regla de precio en catálogo usan fallback 5000 sin inventar valores', () => {
+      expect(estimateIngredientCost(buildIngredient('trufa negra'))).toBe(UNKNOWN_INGREDIENT_ESTIMATED_COST);
+      expect(estimateIngredientCost(buildIngredient('caviar'))).toBe(UNKNOWN_INGREDIENT_ESTIMATED_COST);
+      expect(estimateIngredientCost(buildIngredient('wasabi fresco'))).toBe(UNKNOWN_INGREDIENT_ESTIMATED_COST);
+      expect(estimateIngredientCost(buildIngredient('azafran espanol'))).toBe(UNKNOWN_INGREDIENT_ESTIMATED_COST);
+      expect(estimateIngredientCost(buildIngredient('dragonfruit'))).toBe(UNKNOWN_INGREDIENT_ESTIMATED_COST);
     });
 
     it('19. Inmutabilidad en estimateIngredientCost con plurales y aliases', () => {
@@ -153,6 +231,65 @@ describe('ingredientPrice.service', () => {
 
       expect(cost).toBe(2500);
       expect(ingredient).toEqual(copy);
+    });
+
+    it('21. Agua doméstica para cocinar tiene costo 0 COP y no sobrecarga compras faltantes', () => {
+      expect(estimateIngredientCost(buildIngredient('agua'))).toBe(0);
+      expect(estimateIngredientCost(buildIngredient('agua de la llave'))).toBe(0);
+      expect(estimateIngredientCost(buildIngredient('agua del grifo'))).toBe(0);
+      expect(estimateIngredientCost(buildIngredient('agua tibia'))).toBe(0);
+      expect(estimateIngredientCost(buildIngredient('agua caliente'))).toBe(0);
+      expect(estimateIngredientCost(buildIngredient('agua hervida'))).toBe(0);
+    });
+
+    it('22. Precios colombianos de aguacate, maíz y sus sinónimos regionales', () => {
+      expect(estimateIngredientCost(buildIngredient('aguacate'))).toBe(3500);
+      expect(estimateIngredientCost(buildIngredient('palta'))).toBe(3500);
+      expect(estimateIngredientCost(buildIngredient('paltas'))).toBe(3500);
+      expect(estimateIngredientCost(buildIngredient('aguacates'))).toBe(3500);
+      expect(estimateIngredientCost(buildIngredient('aguacate hass'))).toBe(3500);
+
+      expect(estimateIngredientCost(buildIngredient('maiz'))).toBe(2500);
+      expect(estimateIngredientCost(buildIngredient('choclo'))).toBe(2500);
+      expect(estimateIngredientCost(buildIngredient('mazorca'))).toBe(2500);
+      expect(estimateIngredientCost(buildIngredient('maiz tierno'))).toBe(2500);
+    });
+
+    it('23. Ingredientes básicos de despensa y especias con precios razonables', () => {
+      expect(estimateIngredientCost(buildIngredient('sal'))).toBe(1500);
+      expect(estimateIngredientCost(buildIngredient('sal marina'))).toBe(1500);
+      expect(estimateIngredientCost(buildIngredient('aceite'))).toBe(7000);
+      expect(estimateIngredientCost(buildIngredient('aceite vegetal'))).toBe(7000);
+      expect(estimateIngredientCost(buildIngredient('pimienta'))).toBe(1200);
+      expect(estimateIngredientCost(buildIngredient('pimienta negra'))).toBe(1200);
+      expect(estimateIngredientCost(buildIngredient('comino'))).toBe(1200);
+      expect(estimateIngredientCost(buildIngredient('color'))).toBe(1000);
+      expect(estimateIngredientCost(buildIngredient('achiote'))).toBe(1000);
+      expect(estimateIngredientCost(buildIngredient('laurel'))).toBe(1000);
+      expect(estimateIngredientCost(buildIngredient('tomillo'))).toBe(1000);
+      expect(estimateIngredientCost(buildIngredient('oregano'))).toBe(1200);
+      expect(estimateIngredientCost(buildIngredient('cilantro'))).toBe(1000);
+    });
+
+    it('24. Distinción entre costo de compra (paquete completo) y costo de consumo (porción estimada)', () => {
+      const sal = buildIngredient('sal');
+      const aceite = buildIngredient('aceite');
+      const pimienta = buildIngredient('pimienta');
+
+      // Modo compra por defecto
+      expect(estimateIngredientCost(sal)).toBe(1500);
+      expect(estimateIngredientCost(sal, { mode: 'purchase' })).toBe(1500);
+      expect(estimateIngredientCost(aceite)).toBe(7000);
+      expect(estimateIngredientCost(pimienta)).toBe(1200);
+
+      // Modo consumo / porción
+      expect(estimateIngredientCost(sal, { mode: 'consumption' })).toBe(100);
+      expect(estimateIngredientCost(aceite, { mode: 'consumption' })).toBe(500);
+      expect(estimateIngredientCost(pimienta, { mode: 'consumption' })).toBe(150);
+
+      // Desconocido en modo consumo usa fallback menor
+      const desconocido = buildIngredient('caviar');
+      expect(estimateIngredientCost(desconocido, { mode: 'consumption' })).toBe(UNKNOWN_INGREDIENT_CONSUMPTION_COST);
     });
   });
 
@@ -224,6 +361,32 @@ describe('ingredientPrice.service', () => {
       // 2500 (patatas -> papa) + 2000 (cebollas de rama -> cebolla larga) = 4500
       expect(total).toBe(4500);
       expect(ingredients).toEqual(copy);
+    });
+
+    it('25. Receta con agua faltante no infla el costo total estimado de compras', () => {
+      const ingredients = [
+        buildIngredient('huevo'),
+        buildIngredient('agua'),
+        buildIngredient('sal'),
+      ];
+
+      const total = estimateMissingIngredientsCost(ingredients);
+
+      // huevo (800) + agua (0) + sal (1500) = 2300
+      expect(total).toBe(2300);
+    });
+
+    it('26. estimateMissingIngredientsCost soporta modo de consumo prorrateado', () => {
+      const ingredients = [
+        buildIngredient('sal'),
+        buildIngredient('pimienta'),
+        buildIngredient('agua'),
+      ];
+
+      const totalConsumption = estimateMissingIngredientsCost(ingredients, { mode: 'consumption' });
+
+      // sal (100) + pimienta (150) + agua (0) = 250
+      expect(totalConsumption).toBe(250);
     });
   });
 });

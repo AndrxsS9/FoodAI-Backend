@@ -36,15 +36,22 @@ REGLAS OBLIGATORIAS:
 
 14. Las descripciones deben ser breves y concisas (1 o 2 oraciones), sin redundancias ni verbosidad innecesaria.
 
-15. Los pasos deben ser directos, concretos, claros y estar ordenados cronológicamente.
+15. Los pasos deben ser directos, concretos, claros y estar ordenados cronológicamente en el arreglo 'steps'.
 
 16. Evita recetas excesivamente complejas.
 
-17. Si se proporciona un tiempo máximo de preparación, respétalo estrictamente.
+17. Si se proporciona un tiempo máximo de preparación, respétalo estrictamente en TODAS y cada una de las recetas generadas (totalMinutes <= tiempo máximo). El campo totalMinutes es obligatorio y debe ser un entero positivo.
 
-18. No incluyas calorías, macronutrientes ni información nutricional.
+18. Tiempos de preparación y cocción opcionales:
+    - prepMinutes: tiempo estimado de alistamiento y preparación previa de ingredientes (lavar, pelar, picar).
+    - cookMinutes: tiempo estimado de cocción activa o pasiva (fuego, horno, hervor, fritura).
+    - Consistencia de tiempos: la suma de prepMinutes y cookMinutes debe ser coherente y no exceder totalMinutes.
+    - Si no cuentas con información suficiente para estimar con certeza los tiempos de preparación o cocción, no inventes valores arbitrarios y omite esos campos.
+    - stepDurations: lista opcional con duraciones estimadas para pasos concretos de cocción activa (hervir, freír, sofreír, hornear), indicando stepIndex (base 0 correspondiente al paso en steps), minutes y action.
 
-19. No incluyas explicaciones ni texto fuera del formato JSON solicitado.
+19. No incluyas calorías, macronutrientes ni información nutricional.
+
+20. No incluyas explicaciones ni texto fuera del formato JSON solicitado.
 
 OBJETIVO PRINCIPAL:
 

@@ -13,7 +13,10 @@ import {
   GEMINI_RECIPE_TIMEOUT_MS,
   GEMINI_TIMEOUT_MS,
 } from '../src/services/gemini/geminiTimeout';
-import { generateRecipeRecommendations } from '../src/services/gemini/recipe.service';
+import {
+  generateRecipeRecommendations,
+  sanitizeRecipeTimings,
+} from '../src/services/gemini/recipe.service';
 import { AppError } from '../src/utils/errors';
 
 const mockedCreate = vi.mocked(geminiClient.interactions.create);
@@ -319,5 +322,347 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
     await assertion;
 
     expect(mockedCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('13. parsea y preserva campos opcionales prepMinutes, cookMinutes y stepDurations cuando Gemini los devuelve', async () => {
+    const payloadWithTimings = {
+      recipes: [
+        {
+          name: 'Sancocho rápido',
+          description: 'Sopa tradicional colombiana',
+          totalMinutes: 45,
+          prepMinutes: 15,
+          cookMinutes: 30,
+          stepDurations: [
+            { stepIndex: 0, minutes: 15, action: 'pelar y picar' },
+            { stepIndex: 1, minutes: 30, action: 'hervir a fuego medio' },
+          ],
+          ingredients: [
+            { name: 'pollo', quantity: 500, unit: 'g' },
+            { name: 'papa', quantity: 2, unit: 'unidad' },
+          ],
+          steps: [
+            'Pelar la papa y trocear el pollo.',
+            'Hervir todo en olla grande durante 30 minutos.',
+          ],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(payloadWithTimings),
+    } as any);
+
+    const promise = generateRecipeRecommendations(sampleRecommendationRequest);
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.recipes[0].prepMinutes).toBe(15);
+    expect(result.recipes[0].cookMinutes).toBe(30);
+    expect(result.recipes[0].stepDurations).toHaveLength(2);
+    expect(result.recipes[0].stepDurations?.[0].action).toBe('pelar y picar');
+  });
+
+  it('14. asegura consistencia de tiempos si la suma de prepMinutes y cookMinutes supera totalMinutes', async () => {
+    const inconsistentPayload = {
+      recipes: [
+        {
+          name: 'Arroz con pollo',
+          description: 'Receta casera',
+          totalMinutes: 20, // menor que 10 + 25 = 35
+          prepMinutes: 10,
+          cookMinutes: 25,
+          ingredients: [
+            { name: 'arroz', quantity: 200, unit: 'g' },
+          ],
+          steps: ['Preparar y cocinar.'],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(inconsistentPayload),
+    } as any);
+
+    const promise = generateRecipeRecommendations(sampleRecommendationRequest);
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    // Se ajusta totalMinutes al menos a la suma de prep + cook (35)
+    expect(result.recipes[0].totalMinutes).toBe(35);
+    expect(result.recipes[0].prepMinutes).toBe(10);
+    expect(result.recipes[0].cookMinutes).toBe(25);
+  });
+
+  it('15. filtra stepDurations con índices fuera de rango de steps', async () => {
+    const payloadWithInvalidStepIndex = {
+      recipes: [
+        {
+          name: 'Huevo frito',
+          description: 'Rápido',
+          totalMinutes: 5,
+          ingredients: [
+            { name: 'huevo', quantity: 1, unit: 'unidad' },
+          ],
+          steps: ['Calentar aceite y freír el huevo.'],
+          stepDurations: [
+            { stepIndex: 0, minutes: 4, action: 'freír' },
+            { stepIndex: 99, minutes: 10, action: 'inexistente' },
+          ],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(payloadWithInvalidStepIndex),
+    } as any);
+
+    const promise = generateRecipeRecommendations(sampleRecommendationRequest);
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.recipes[0].stepDurations).toHaveLength(1);
+    expect(result.recipes[0].stepDurations?.[0].stepIndex).toBe(0);
+  });
+
+  it('16. sanitizeRecipeTimings: si prepMinutes + cookMinutes supera maxMinutes, omite metadata opcional sin inflar totalMinutes ni fabricar tiempos menores', () => {
+    const rawRecipe = {
+      name: 'Sopa rápida',
+      description: 'Sopa casera',
+      totalMinutes: 20,
+      prepMinutes: 15,
+      cookMinutes: 15,
+      ingredients: [{ name: 'agua', quantity: 500, unit: 'ml' as const }],
+      steps: ['Hervir agua y servir.'],
+    };
+
+    const sanitized = sanitizeRecipeTimings(rawRecipe, 20);
+
+    expect(sanitized.totalMinutes).toBe(20);
+    expect(sanitized.prepMinutes).toBeUndefined();
+    expect(sanitized.cookMinutes).toBeUndefined();
+  });
+
+  it('17. sanitizeRecipeTimings: valida coherencia de stepDurations descartando duraciones individuales excesivas o suma incoherente', () => {
+    const recipeWithExcessiveSteps = {
+      name: 'Guiso de carne',
+      description: 'Guiso tradicional',
+      totalMinutes: 30,
+      ingredients: [{ name: 'carne', quantity: 200, unit: 'g' as const }],
+      steps: ['Picar carne.', 'Cocinar a fuego lento.'],
+      stepDurations: [
+        { stepIndex: 0, minutes: 10, action: 'picar' },
+        { stepIndex: 1, minutes: 50, action: 'cocinar' },
+      ],
+    };
+
+    const sanitized = sanitizeRecipeTimings(recipeWithExcessiveSteps, 30);
+    expect(sanitized.stepDurations).toHaveLength(1);
+    expect(sanitized.stepDurations?.[0].stepIndex).toBe(0);
+
+    const recipeWithIncoherentSum = {
+      name: 'Salteado',
+      description: 'Salteado rápido',
+      totalMinutes: 20,
+      ingredients: [{ name: 'zanahoria', quantity: 1, unit: 'unidad' as const }],
+      steps: ['Paso 1', 'Paso 2'],
+      stepDurations: [
+        { stepIndex: 0, minutes: 12, action: 'cortar' },
+        { stepIndex: 1, minutes: 15, action: 'saltear' },
+      ],
+    };
+    const sanitizedSum = sanitizeRecipeTimings(recipeWithIncoherentSum, 20);
+    expect(sanitizedSum.stepDurations).toBeUndefined();
+  });
+
+  it('18. generateRecipeRecommendations con maxMinutes: filtra recetas que excedan el límite solicitado', async () => {
+    const mixedPayload = {
+      recipes: [
+        {
+          name: 'Ensalada rápida',
+          description: 'Receta dentro del límite',
+          totalMinutes: 20,
+          ingredients: [{ name: 'tomate', quantity: 1, unit: 'unidad' }],
+          steps: ['Picar y servir.'],
+        },
+        {
+          name: 'Frijoles con garra',
+          description: 'Receta que excede el límite',
+          totalMinutes: 60,
+          ingredients: [{ name: 'frijol', quantity: 300, unit: 'g' }],
+          steps: ['Remojar y cocinar por horas.'],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(mixedPayload),
+    } as any);
+
+    const promise = generateRecipeRecommendations({
+      ...sampleRecommendationRequest,
+      maxMinutes: 30,
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.recipes).toHaveLength(1);
+    expect(result.recipes[0].name).toBe('Ensalada rápida');
+    expect(result.recipes[0].totalMinutes).toBe(20);
+  });
+
+  it('19. generateRecipeRecommendations con maxMinutes: lanza RECIPE_TIME_LIMIT_EXCEEDED (502) si ninguna receta cumple maxMinutes', async () => {
+    const overTimePayload = {
+      recipes: [
+        {
+          name: 'Sancocho trifásico',
+          description: 'Cocción lenta',
+          totalMinutes: 90,
+          ingredients: [{ name: 'pollo', quantity: 500, unit: 'g' }],
+          steps: ['Hervir todo por largo tiempo.'],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(overTimePayload),
+    } as any);
+
+    const promise = generateRecipeRecommendations({
+      ...sampleRecommendationRequest,
+      maxMinutes: 30,
+    });
+    const assertion = expect(promise).rejects.toSatisfy((err: unknown) => {
+      return (
+        err instanceof AppError &&
+        err.statusCode === 502 &&
+        err.code === 'RECIPE_TIME_LIMIT_EXCEEDED'
+      );
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    await assertion;
+  });
+
+  it('20. generateRecipeRecommendations con maxMinutes e inconsistencia en Gemini: omite metadata inconsistente y conserva receta dentro del límite', async () => {
+    const payloadWithInconsistentTimings = {
+      recipes: [
+        {
+          name: 'Omelette de espinaca',
+          description: 'Rápido y saludable',
+          totalMinutes: 20,
+          prepMinutes: 15,
+          cookMinutes: 15,
+          ingredients: [
+            { name: 'huevo', quantity: 2, unit: 'unidad' },
+            { name: 'espinaca', quantity: 50, unit: 'g' },
+          ],
+          steps: ['Batir huevos.', 'Cocinar en sartén 5 minutos.'],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(payloadWithInconsistentTimings),
+    } as any);
+
+    const promise = generateRecipeRecommendations({
+      ...sampleRecommendationRequest,
+      maxMinutes: 20,
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.recipes).toHaveLength(1);
+    expect(result.recipes[0].name).toBe('Omelette de espinaca');
+    expect(result.recipes[0].totalMinutes).toBe(20);
+    expect(result.recipes[0].prepMinutes).toBeUndefined();
+    expect(result.recipes[0].cookMinutes).toBeUndefined();
+  });
+
+  it('21. con maxMinutes y 3 recetas devueltas donde 1 excede maxMinutes: filtra únicamente la excedente y retorna las 2 válidas', async () => {
+    const threeRecipesPayload = {
+      recipes: [
+        {
+          name: 'Ensalada rápida',
+          description: 'Cumple el tiempo',
+          totalMinutes: 15,
+          ingredients: [{ name: 'tomate', quantity: 1, unit: 'unidad' }],
+          steps: ['Picar tomate.'],
+        },
+        {
+          name: 'Huevo tibio',
+          description: 'Cumple el tiempo',
+          totalMinutes: 10,
+          ingredients: [{ name: 'huevo', quantity: 2, unit: 'unidad' }],
+          steps: ['Hervir huevo 6 minutos.'],
+        },
+        {
+          name: 'Frijolada campesina',
+          description: 'Excede el tiempo',
+          totalMinutes: 60,
+          ingredients: [{ name: 'frijol', quantity: 200, unit: 'g' }],
+          steps: ['Cocinar frijoles en olla a presión.'],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(threeRecipesPayload),
+    } as any);
+
+    const promise = generateRecipeRecommendations({
+      ...sampleRecommendationRequest,
+      maxMinutes: 30,
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.recipes).toHaveLength(2);
+    expect(result.recipes.map((r) => r.name)).toEqual([
+      'Ensalada rápida',
+      'Huevo tibio',
+    ]);
+  });
+
+  it('22. con maxMinutes y 3 recetas devueltas donde 2 exceden maxMinutes: filtra ambas excedentes y retorna la única válida', async () => {
+    const threeRecipesPayload = {
+      recipes: [
+        {
+          name: 'Sándwich caliente',
+          description: 'Cumple el tiempo',
+          totalMinutes: 10,
+          ingredients: [{ name: 'huevo', quantity: 1, unit: 'unidad' }],
+          steps: ['Armar sándwich.'],
+        },
+        {
+          name: 'Pollo al horno',
+          description: 'Excede el tiempo',
+          totalMinutes: 45,
+          ingredients: [{ name: 'pollo', quantity: 300, unit: 'g' }],
+          steps: ['Hornear 45 minutos.'],
+        },
+        {
+          name: 'Guiso de carne',
+          description: 'Excede el tiempo',
+          totalMinutes: 50,
+          ingredients: [{ name: 'carne', quantity: 250, unit: 'g' }],
+          steps: ['Cocinar a fuego lento.'],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(threeRecipesPayload),
+    } as any);
+
+    const promise = generateRecipeRecommendations({
+      ...sampleRecommendationRequest,
+      maxMinutes: 20,
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.recipes).toHaveLength(1);
+    expect(result.recipes[0].name).toBe('Sándwich caliente');
   });
 });

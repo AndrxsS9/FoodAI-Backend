@@ -1392,5 +1392,93 @@ describe('recommendation.service - buildRecipeRecommendations', () => {
       expect(mockedGenerateRecipeRecommendations).toHaveBeenCalledTimes(1);
       expect(mockedGenerateRecipeRecommendations).toHaveBeenCalledWith(request);
     });
+
+    it('25. Preserva metadatos enriquecidos de tiempos prepMinutes, cookMinutes y stepDurations', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 500, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry);
+
+      const candidateRecipe = {
+        name: 'Arroz sazonado',
+        description: 'Receta detallada con tiempos',
+        totalMinutes: 30,
+        prepMinutes: 10,
+        cookMinutes: 20,
+        stepDurations: [
+          { stepIndex: 0, minutes: 10, action: 'lavar y medir' },
+          { stepIndex: 1, minutes: 20, action: 'cocer a fuego lento' },
+        ],
+        ingredients: [{ name: 'arroz', quantity: 200, unit: 'g' }],
+        steps: ['Lavar y medir el arroz.', 'Cocer a fuego lento 20 minutos.'],
+      };
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [candidateRecipe],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+      const [rec] = response.recipes;
+
+      expect(rec.prepMinutes).toBe(10);
+      expect(rec.cookMinutes).toBe(20);
+      expect(rec.stepDurations).toEqual(candidateRecipe.stepDurations);
+    });
+
+    it('26. Agua faltante se reporta en missingIngredients pero no genera costo de compra (0 COP)', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 500, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          {
+            name: 'Arroz blanco',
+            description: 'Receta con agua faltante en despensa',
+            totalMinutes: 20,
+            ingredients: [
+              { name: 'arroz', quantity: 200, unit: 'g' },
+              { name: 'agua', quantity: 400, unit: 'ml' },
+            ],
+            steps: ['Cocer el arroz en agua.'],
+          },
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+      const [rec] = response.recipes;
+
+      expect(rec.missingIngredients.map((i) => i.name)).toContain('agua');
+      expect(rec.estimatedMissingCost).toBe(0);
+    });
+
+    it('27. Ingredientes colombianos del catálogo ampliado calculan costo exacto al faltar', async () => {
+      const pantry = [
+        buildPantryIngredient('arroz', { quantity: 500, unit: 'g' }),
+      ];
+      const request = buildRequest(pantry);
+
+      mockedGenerateRecipeRecommendations.mockResolvedValueOnce({
+        recipes: [
+          {
+            name: 'Arroz con aguacate',
+            description: 'Acompañamiento tradicional',
+            totalMinutes: 15,
+            ingredients: [
+              { name: 'arroz', quantity: 200, unit: 'g' },
+              { name: 'aguacate', quantity: 1, unit: 'unidad' },
+            ],
+            steps: ['Servir arroz con tajadas de aguacate.'],
+          },
+        ],
+      });
+
+      const response = await buildRecipeRecommendations(request);
+      const [rec] = response.recipes;
+
+      expect(rec.missingIngredients.map((i) => i.name)).toEqual(['aguacate']);
+      expect(rec.estimatedMissingCost).toBe(3500);
+    });
   });
 });
