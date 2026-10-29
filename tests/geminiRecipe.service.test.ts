@@ -320,4 +320,105 @@ describe('geminiRecipe.service (generateRecipeRecommendations)', () => {
 
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
+
+  it('13. parsea y preserva campos opcionales prepMinutes, cookMinutes y stepDurations cuando Gemini los devuelve', async () => {
+    const payloadWithTimings = {
+      recipes: [
+        {
+          name: 'Sancocho rápido',
+          description: 'Sopa tradicional colombiana',
+          totalMinutes: 45,
+          prepMinutes: 15,
+          cookMinutes: 30,
+          stepDurations: [
+            { stepIndex: 0, minutes: 15, action: 'pelar y picar' },
+            { stepIndex: 1, minutes: 30, action: 'hervir a fuego medio' },
+          ],
+          ingredients: [
+            { name: 'pollo', quantity: 500, unit: 'g' },
+            { name: 'papa', quantity: 2, unit: 'unidad' },
+          ],
+          steps: [
+            'Pelar la papa y trocear el pollo.',
+            'Hervir todo en olla grande durante 30 minutos.',
+          ],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(payloadWithTimings),
+    } as any);
+
+    const promise = generateRecipeRecommendations(sampleRecommendationRequest);
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.recipes[0].prepMinutes).toBe(15);
+    expect(result.recipes[0].cookMinutes).toBe(30);
+    expect(result.recipes[0].stepDurations).toHaveLength(2);
+    expect(result.recipes[0].stepDurations?.[0].action).toBe('pelar y picar');
+  });
+
+  it('14. asegura consistencia de tiempos si la suma de prepMinutes y cookMinutes supera totalMinutes', async () => {
+    const inconsistentPayload = {
+      recipes: [
+        {
+          name: 'Arroz con pollo',
+          description: 'Receta casera',
+          totalMinutes: 20, // menor que 10 + 25 = 35
+          prepMinutes: 10,
+          cookMinutes: 25,
+          ingredients: [
+            { name: 'arroz', quantity: 200, unit: 'g' },
+          ],
+          steps: ['Preparar y cocinar.'],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(inconsistentPayload),
+    } as any);
+
+    const promise = generateRecipeRecommendations(sampleRecommendationRequest);
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    // Se ajusta totalMinutes al menos a la suma de prep + cook (35)
+    expect(result.recipes[0].totalMinutes).toBe(35);
+    expect(result.recipes[0].prepMinutes).toBe(10);
+    expect(result.recipes[0].cookMinutes).toBe(25);
+  });
+
+  it('15. filtra stepDurations con índices fuera de rango de steps', async () => {
+    const payloadWithInvalidStepIndex = {
+      recipes: [
+        {
+          name: 'Huevo frito',
+          description: 'Rápido',
+          totalMinutes: 5,
+          ingredients: [
+            { name: 'huevo', quantity: 1, unit: 'unidad' },
+          ],
+          steps: ['Calentar aceite y freír el huevo.'],
+          stepDurations: [
+            { stepIndex: 0, minutes: 4, action: 'freír' },
+            { stepIndex: 99, minutes: 10, action: 'inexistente' },
+          ],
+        },
+      ],
+    };
+
+    mockedCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify(payloadWithInvalidStepIndex),
+    } as any);
+
+    const promise = generateRecipeRecommendations(sampleRecommendationRequest);
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.recipes[0].stepDurations).toHaveLength(1);
+    expect(result.recipes[0].stepDurations?.[0].stepIndex).toBe(0);
+  });
 });

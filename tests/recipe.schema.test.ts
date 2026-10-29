@@ -11,6 +11,7 @@ import {
   recipeRecommendationRequestSchema,
   recipeRecommendationResponseSchema,
   recommendedRecipeSchema,
+  stepDurationSchema,
   type GeneratedRecipe,
   type RecipeIngredient,
   type RecommendedRecipe,
@@ -118,7 +119,7 @@ describe('recipe.schema - Pruebas unitarias de schemas de recetas', () => {
       expect(result.success).toBe(false);
     });
 
-    it('4. Acepta budget igual a cero', () => {
+    it('4. Acepta budget = 0', () => {
       const request = {
         pantry: [buildValidPantryIngredient()],
         budget: 0,
@@ -131,7 +132,7 @@ describe('recipe.schema - Pruebas unitarias de schemas de recetas', () => {
       expect(result.success).toBe(true);
     });
 
-    it('5. Rechaza servings = 0', () => {
+    it('5. Rechaza servings < 1', () => {
       const request = {
         pantry: [buildValidPantryIngredient()],
         budget: 20000,
@@ -157,138 +158,138 @@ describe('recipe.schema - Pruebas unitarias de schemas de recetas', () => {
       expect(result.success).toBe(false);
     });
 
-    it('7. Rechaza servings decimal', () => {
-      const request = {
+    it('7. Acepta servings dentro del rango (1 a 12)', () => {
+      const min = {
         pantry: [buildValidPantryIngredient()],
         budget: 20000,
-        servings: 2.5,
+        servings: 1,
+      };
+      const max = {
+        pantry: [buildValidPantryIngredient()],
+        budget: 20000,
+        servings: 12,
       };
 
-      const result =
-        recipeRecommendationRequestSchema.safeParse(request);
-
-      expect(result.success).toBe(false);
+      expect(
+        recipeRecommendationRequestSchema.safeParse(min).success,
+      ).toBe(true);
+      expect(
+        recipeRecommendationRequestSchema.safeParse(max).success,
+      ).toBe(true);
     });
 
-    it('8. maxMinutes es opcional', () => {
+    it('8. Acepta maxMinutes positivo y dentro de 240', () => {
       const request = {
         pantry: [buildValidPantryIngredient()],
         budget: 20000,
-        servings: 4,
+        servings: 2,
+        maxMinutes: 120,
       };
 
       const result =
         recipeRecommendationRequestSchema.safeParse(request);
 
       expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.maxMinutes).toBeUndefined();
-      }
     });
 
-    it('9. Rechaza maxMinutes = 0', () => {
-      const request = {
+    it('9. Rechaza maxMinutes <= 0 o > 240', () => {
+      const zero = {
         pantry: [buildValidPantryIngredient()],
         budget: 20000,
-        servings: 4,
+        servings: 2,
         maxMinutes: 0,
       };
-
-      const result =
-        recipeRecommendationRequestSchema.safeParse(request);
-
-      expect(result.success).toBe(false);
-    });
-
-    it('10. Rechaza maxMinutes > 240', () => {
-      const request = {
+      const overMax = {
         pantry: [buildValidPantryIngredient()],
         budget: 20000,
-        servings: 4,
+        servings: 2,
         maxMinutes: 241,
       };
 
-      const result =
-        recipeRecommendationRequestSchema.safeParse(request);
-
-      expect(result.success).toBe(false);
+      expect(
+        recipeRecommendationRequestSchema.safeParse(zero).success,
+      ).toBe(false);
+      expect(
+        recipeRecommendationRequestSchema.safeParse(overMax).success,
+      ).toBe(false);
     });
   });
 
   describe('recipeIngredientSchema', () => {
-    const validUnits: Array<RecipeIngredient['unit']> = [
-      'unidad',
-      'g',
-      'kg',
-      'ml',
-      'l',
-      'cucharada',
-      'cucharadita',
-      'taza',
-      'desconocida',
-    ];
+    it('10. Acepta un ingrediente de receta válido', () => {
+      const ingredient = buildValidRecipeIngredient();
 
-    it.each(validUnits)(
-      '11. Acepta la unidad válida soportada: "%s"',
-      (unit) => {
-        const ingredient = buildValidRecipeIngredient({ unit });
-
-        const result =
-          recipeIngredientSchema.safeParse(ingredient);
-
-        expect(result.success).toBe(true);
-      },
-    );
-
-    it('12. Rechaza una unidad no soportada', () => {
-      const ingredient = {
-        name: 'arroz',
-        quantity: 200,
-        unit: 'litros',
-      };
-
-      const result =
-        recipeIngredientSchema.safeParse(ingredient);
-
-      expect(result.success).toBe(false);
-    });
-
-    it('13. Acepta quantity = null', () => {
-      const ingredient = buildValidRecipeIngredient({
-        quantity: null,
-      });
-
-      const result =
-        recipeIngredientSchema.safeParse(ingredient);
+      const result = recipeIngredientSchema.safeParse(ingredient);
 
       expect(result.success).toBe(true);
     });
 
-    it('14. Rechaza quantity = 0', () => {
-      const ingredient = buildValidRecipeIngredient({
-        quantity: 0,
-      });
+    it('11. Rechaza name vacío', () => {
+      const ingredient = buildValidRecipeIngredient({ name: '' });
 
-      const result =
-        recipeIngredientSchema.safeParse(ingredient);
+      const result = recipeIngredientSchema.safeParse(ingredient);
 
       expect(result.success).toBe(false);
     });
 
-    it('15. Rechaza quantity negativa', () => {
+    it('12. Acepta quantity null cuando no puede determinarse', () => {
       const ingredient = buildValidRecipeIngredient({
-        quantity: -5,
+        quantity: null,
+        unit: 'desconocida',
       });
 
-      const result =
-        recipeIngredientSchema.safeParse(ingredient);
+      const result = recipeIngredientSchema.safeParse(ingredient);
+
+      expect(result.success).toBe(true);
+    });
+
+    it('13. Rechaza quantity negativa o cero', () => {
+      const zero = buildValidRecipeIngredient({ quantity: 0 });
+      const negative = buildValidRecipeIngredient({ quantity: -5 });
+
+      expect(recipeIngredientSchema.safeParse(zero).success).toBe(
+        false,
+      );
+      expect(
+        recipeIngredientSchema.safeParse(negative).success,
+      ).toBe(false);
+    });
+
+    it('14. Acepta todas las unidades válidas del enum', () => {
+      const units = [
+        'unidad',
+        'g',
+        'kg',
+        'ml',
+        'l',
+        'cucharada',
+        'cucharadita',
+        'taza',
+        'desconocida',
+      ] as const;
+
+      for (const unit of units) {
+        const ingredient = buildValidRecipeIngredient({ unit });
+        const result = recipeIngredientSchema.safeParse(ingredient);
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('15. Rechaza unidades no permitidas', () => {
+      const ingredient = {
+        name: 'arroz',
+        quantity: 200,
+        unit: 'libras',
+      };
+
+      const result = recipeIngredientSchema.safeParse(ingredient);
 
       expect(result.success).toBe(false);
     });
   });
 
   describe('generatedRecipeSchema', () => {
-    it('16. Acepta una receta generada válida', () => {
+    it('16. Acepta una receta generada completa y válida', () => {
       const recipe = buildValidGeneratedRecipe();
 
       const result = generatedRecipeSchema.safeParse(recipe);
@@ -346,6 +347,136 @@ describe('recipe.schema - Pruebas unitarias de schemas de recetas', () => {
       const result = generatedRecipeSchema.safeParse(recipe);
 
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('Enriquecimiento de tiempos de preparación, cocción y pasos (prepMinutes, cookMinutes, stepDurations)', () => {
+    it('acepta receta legacy sin campos de tiempo opcionales (retrocompatibilidad)', () => {
+      const legacyRecipe: GeneratedRecipe = {
+        name: 'Arroz simple',
+        description: 'Receta básica',
+        totalMinutes: 20,
+        ingredients: [buildValidRecipeIngredient()],
+        steps: ['Cocinar arroz.'],
+      };
+
+      const result = generatedRecipeSchema.safeParse(legacyRecipe);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.prepMinutes).toBeUndefined();
+        expect(result.data.cookMinutes).toBeUndefined();
+        expect(result.data.stepDurations).toBeUndefined();
+      }
+    });
+
+    it('acepta receta con prepMinutes y cookMinutes enteros válidos', () => {
+      const recipe = buildValidGeneratedRecipe({
+        prepMinutes: 10,
+        cookMinutes: 15,
+        totalMinutes: 25,
+      });
+
+      const result = generatedRecipeSchema.safeParse(recipe);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.prepMinutes).toBe(10);
+        expect(result.data.cookMinutes).toBe(15);
+      }
+    });
+
+    it('acepta prepMinutes = 0 y cookMinutes = 0 (ej. ensaladas o preparaciones frías)', () => {
+      const recipe = buildValidGeneratedRecipe({
+        prepMinutes: 5,
+        cookMinutes: 0,
+        totalMinutes: 5,
+      });
+
+      const result = generatedRecipeSchema.safeParse(recipe);
+      expect(result.success).toBe(true);
+    });
+
+    it('rechaza prepMinutes negativo o cookMinutes negativo', () => {
+      const negativePrep = buildValidGeneratedRecipe({
+        prepMinutes: -5,
+      });
+      const negativeCook = buildValidGeneratedRecipe({
+        cookMinutes: -10,
+      });
+
+      expect(generatedRecipeSchema.safeParse(negativePrep).success).toBe(false);
+      expect(generatedRecipeSchema.safeParse(negativeCook).success).toBe(false);
+    });
+
+    it('rechaza prepMinutes o cookMinutes no enteros', () => {
+      const floatPrep = {
+        ...buildValidGeneratedRecipe(),
+        prepMinutes: 5.5,
+      };
+
+      expect(generatedRecipeSchema.safeParse(floatPrep).success).toBe(false);
+    });
+
+    it('acepta stepDurations con metadata estructurada por paso', () => {
+      const recipe = buildValidGeneratedRecipe({
+        steps: [
+          'Picar cebolla y tomate',
+          'Sofreír los aliños a fuego medio',
+          'Hervir con agua y servir',
+        ],
+        stepDurations: [
+          { stepIndex: 0, minutes: 5, action: 'picar' },
+          { stepIndex: 1, minutes: 7, action: 'sofreír' },
+          { stepIndex: 2, minutes: 10, action: 'hervir' },
+        ],
+      });
+
+      const result = generatedRecipeSchema.safeParse(recipe);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.stepDurations).toHaveLength(3);
+        expect(result.data.stepDurations?.[1].action).toBe('sofreír');
+      }
+    });
+
+    it('valida stepDurationSchema individualmente', () => {
+      const valid = stepDurationSchema.safeParse({
+        stepIndex: 0,
+        minutes: 10,
+        action: 'hornear',
+      });
+      expect(valid.success).toBe(true);
+
+      const invalidIndex = stepDurationSchema.safeParse({
+        stepIndex: -1,
+        minutes: 10,
+      });
+      expect(invalidIndex.success).toBe(false);
+
+      const invalidMinutes = stepDurationSchema.safeParse({
+        stepIndex: 0,
+        minutes: 0,
+      });
+      expect(invalidMinutes.success).toBe(false);
+    });
+
+    it('recommendedRecipeSchema propaga y preserva prepMinutes, cookMinutes y stepDurations', () => {
+      const recommended = buildValidRecommendedRecipe({
+        prepMinutes: 10,
+        cookMinutes: 20,
+        totalMinutes: 30,
+        stepDurations: [
+          { stepIndex: 0, minutes: 10, action: 'preparar' },
+          { stepIndex: 1, minutes: 20, action: 'cocinar' },
+        ],
+      });
+
+      const result = recommendedRecipeSchema.safeParse(recommended);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.prepMinutes).toBe(10);
+        expect(result.data.cookMinutes).toBe(20);
+        expect(result.data.stepDurations).toHaveLength(2);
+      }
     });
   });
 

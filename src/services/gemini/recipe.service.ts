@@ -8,6 +8,7 @@ import { geminiClient } from './gemini.client';
 import {
   generatedRecipesJsonSchema,
   generatedRecipesSchema,
+  type GeneratedRecipe,
   type GeneratedRecipes,
   type RecipeRecommendationRequest,
 } from '../../schemas/recipe.schema';
@@ -15,6 +16,35 @@ import {
 import { buildRecipeRecommendationPrompt } from '../../prompts/recommendRecipes.prompt';
 
 import { AppError } from '../../utils/errors';
+
+export function sanitizeRecipeTimings(recipe: GeneratedRecipe): GeneratedRecipe {
+  let { totalMinutes, prepMinutes, cookMinutes, stepDurations } = recipe;
+
+  if (typeof prepMinutes === 'number' && typeof cookMinutes === 'number') {
+    if (prepMinutes + cookMinutes > totalMinutes) {
+      totalMinutes = prepMinutes + cookMinutes;
+    }
+  } else if (typeof prepMinutes === 'number' && prepMinutes > totalMinutes) {
+    totalMinutes = prepMinutes;
+  } else if (typeof cookMinutes === 'number' && cookMinutes > totalMinutes) {
+    totalMinutes = cookMinutes;
+  }
+
+  let sanitizedStepDurations = stepDurations;
+  if (Array.isArray(stepDurations)) {
+    sanitizedStepDurations = stepDurations.filter(
+      (sd) => sd.stepIndex >= 0 && sd.stepIndex < recipe.steps.length,
+    );
+  }
+
+  return {
+    ...recipe,
+    totalMinutes,
+    ...(prepMinutes !== undefined ? { prepMinutes } : {}),
+    ...(cookMinutes !== undefined ? { cookMinutes } : {}),
+    ...(sanitizedStepDurations !== undefined ? { stepDurations: sanitizedStepDurations } : {}),
+  };
+}
 
 export async function generateRecipeRecommendations(
   input: RecipeRecommendationRequest,
@@ -95,7 +125,11 @@ export async function generateRecipeRecommendations(
       );
     }
 
-    return validation.data;
+    const sanitizedRecipes = validation.data.recipes.map(sanitizeRecipeTimings);
+
+    return {
+      recipes: sanitizedRecipes,
+    };
   } catch (error) {
     if (error instanceof AppError) {
       throw error;
