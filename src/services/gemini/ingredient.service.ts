@@ -12,6 +12,7 @@ import {
 import { detectIngredientsPrompt } from '../../prompts/detectIngredients.prompt';
 
 import { AppError } from '../../utils/errors';
+import { formatSafeErrorForLog } from '../../utils/safeLogger';
 
 interface AnalyzeImageInput {
   buffer: Buffer;
@@ -84,7 +85,7 @@ export async function analyzeIngredientsFromImage({
     if (!validation.success) {
       console.error(
         '❌ Respuesta inválida de Gemini:',
-        validation.error,
+        validation.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
       );
 
       throw new AppError(
@@ -156,7 +157,7 @@ export async function analyzeIngredientsFromImage({
      */
     console.error(
       '❌ Error analizando imagen con Gemini:',
-      error,
+      formatSafeErrorForLog(error),
     );
 
     throw new AppError(

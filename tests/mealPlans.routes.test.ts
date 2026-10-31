@@ -1,11 +1,19 @@
 import request from 'supertest';
 import {
+  afterAll,
+  beforeAll,
   beforeEach,
   describe,
   expect,
   it,
   vi,
 } from 'vitest';
+
+import {
+  setupTestSupabaseJwks,
+  signTestSupabaseJwt,
+  teardownTestSupabaseJwks,
+} from './helpers/testAuth';
 
 vi.mock(
   '../src/services/recipes/recommendation.service',
@@ -50,6 +58,20 @@ const validRequest = {
 };
 
 describe('POST /api/meal-plans/generate', () => {
+  let authHeader = '';
+
+  beforeAll(async () => {
+    await setupTestSupabaseJwks();
+    const token = await signTestSupabaseJwt({
+      sub: 'user-meal-plans-routes-test',
+    });
+    authHeader = `Bearer ${token}`;
+  });
+
+  afterAll(async () => {
+    await teardownTestSupabaseJwks();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -57,6 +79,7 @@ describe('POST /api/meal-plans/generate', () => {
   it('debe rechazar una solicitud sin ingredientes en la despensa', async () => {
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send({
         pantry: [],
         budget: 20000,
@@ -201,6 +224,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send(validRequest);
 
     expect(response.status).toBe(200);
@@ -322,6 +346,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send(validRequest);
 
     expect(response.status).toBe(200);
@@ -454,6 +479,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send({
         ...validRequest,
         budget: 0,
@@ -593,6 +619,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send(validRequest);
 
     expect(response.status).toBe(200);
@@ -735,6 +762,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send(validRequest);
 
     expect(response.status).toBe(200);
@@ -802,6 +830,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send({
         pantry: validRequest.pantry,
         budget: validRequest.budget,
@@ -882,6 +911,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send(validRequest);
 
     expect(response.status).toBe(200);
@@ -953,6 +983,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send(validRequest);
 
     expect(response.status).toBe(200);
@@ -1023,6 +1054,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send(validRequest);
 
     expect(response.status).toBe(200);
@@ -1096,6 +1128,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send(requestPayload);
 
     expect(response.status).toBe(200);
@@ -1169,6 +1202,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send(validRequest);
 
     expect(response.status).toBe(200);
@@ -1222,6 +1256,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send({
         ...validRequest,
         maxMinutes: 20,
@@ -1260,6 +1295,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send({
         ...validRequest,
         maxMinutes: 15,
@@ -1288,6 +1324,7 @@ describe('POST /api/meal-plans/generate', () => {
 
     const response = await request(app)
       .post('/api/meal-plans/generate')
+      .set('Authorization', authHeader)
       .send({
         ...validRequest,
         maxMinutes: 15,

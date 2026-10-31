@@ -1,6 +1,6 @@
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import app from '../src/app';
 import {
@@ -9,8 +9,27 @@ import {
   DEFAULT_AI_RATE_LIMIT_MESSAGE,
   DEFAULT_AI_RATE_LIMIT_WINDOW_MS,
 } from '../src/middlewares/aiRateLimit.middleware';
+import {
+  setupTestSupabaseJwks,
+  signTestSupabaseJwt,
+  teardownTestSupabaseJwks,
+} from './helpers/testAuth';
 
 describe('aiRateLimit.middleware', () => {
+  let authHeader = '';
+
+  beforeAll(async () => {
+    await setupTestSupabaseJwks();
+    const token = await signTestSupabaseJwt({
+      sub: 'user-ratelimit-middleware-test',
+    });
+    authHeader = `Bearer ${token}`;
+  });
+
+  afterAll(async () => {
+    await teardownTestSupabaseJwks();
+  });
+
   it('1. exporta constantes por defecto válidas y coherentes', () => {
     expect(DEFAULT_AI_RATE_LIMIT_WINDOW_MS).toBe(60000);
     expect(DEFAULT_AI_RATE_LIMIT_MAX).toBe(30);
@@ -109,6 +128,7 @@ describe('aiRateLimit.middleware', () => {
   it('7. no altera las respuestas normales antes de alcanzar el límite', async () => {
     const response = await request(app)
       .post('/api/recipes/recommend')
+      .set('Authorization', authHeader)
       .send({ invalidField: true });
 
     // Valida que el pipeline de rutas sigue funcionando (error 400 de Zod, no 429)

@@ -1,5 +1,7 @@
 import request from 'supertest';
 import {
+  afterAll,
+  beforeAll,
   beforeEach,
   describe,
   expect,
@@ -8,6 +10,11 @@ import {
 } from 'vitest';
 
 import { AppError } from '../src/utils/errors';
+import {
+  setupTestSupabaseJwks,
+  signTestSupabaseJwt,
+  teardownTestSupabaseJwks,
+} from './helpers/testAuth';
 
 vi.mock(
   '../src/services/gemini/recipe.service',
@@ -53,6 +60,20 @@ const validRequest = {
 };
 
 describe('POST /api/recipes/recommend', () => {
+  let authHeader = '';
+
+  beforeAll(async () => {
+    await setupTestSupabaseJwks();
+    const token = await signTestSupabaseJwt({
+      sub: 'user-recipes-routes-test',
+    });
+    authHeader = `Bearer ${token}`;
+  });
+
+  afterAll(async () => {
+    await teardownTestSupabaseJwks();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -60,6 +81,7 @@ describe('POST /api/recipes/recommend', () => {
   it('debe rechazar una solicitud sin ingredientes en la despensa', async () => {
     const response = await request(app)
       .post('/api/recipes/recommend')
+      .set('Authorization', authHeader)
       .send({
         pantry: [],
         budget: 20000,
@@ -156,6 +178,7 @@ describe('POST /api/recipes/recommend', () => {
 
     const response = await request(app)
       .post('/api/recipes/recommend')
+      .set('Authorization', authHeader)
       .send(validRequest);
 
     expect(response.status).toBe(200);
@@ -274,6 +297,7 @@ describe('POST /api/recipes/recommend', () => {
 
     const response = await request(app)
       .post('/api/recipes/recommend')
+      .set('Authorization', authHeader)
       .send({
         ...validRequest,
         budget: 5000,
@@ -315,6 +339,7 @@ describe('POST /api/recipes/recommend', () => {
 
     const response = await request(app)
       .post('/api/recipes/recommend')
+      .set('Authorization', authHeader)
       .send(validRequest);
 
     expect(response.status).toBe(429);
@@ -340,6 +365,7 @@ describe('POST /api/recipes/recommend', () => {
 
     const response = await request(app)
       .post('/api/recipes/recommend')
+      .set('Authorization', authHeader)
       .send(validRequest);
 
     expect(response.status).toBe(503);
@@ -365,6 +391,7 @@ describe('POST /api/recipes/recommend', () => {
 
     const response = await request(app)
       .post('/api/recipes/recommend')
+      .set('Authorization', authHeader)
       .send(validRequest);
 
     expect(response.status).toBe(504);

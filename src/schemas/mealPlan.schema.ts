@@ -1,23 +1,32 @@
 import { z } from 'zod';
 
-import { ingredientSchema } from './ingredient.schema';
-
 import {
+  MAX_BUDGET_COP,
+  MAX_PANTRY_ITEMS,
+  pantryIngredientInputSchema,
   recommendedRecipeSchema,
 } from './recipe.schema';
 
 export const mealPlanRequestSchema = z.object({
   pantry: z
-    .array(ingredientSchema)
+    .array(pantryIngredientInputSchema)
     .min(
       1,
       'Debes tener al menos un ingrediente en la despensa.',
+    )
+    .max(
+      MAX_PANTRY_ITEMS,
+      `La despensa no puede superar ${MAX_PANTRY_ITEMS} ingredientes por solicitud.`,
     ),
 
   budget: z
     .number()
     .nonnegative(
       'El presupuesto no puede ser negativo.',
+    )
+    .max(
+      MAX_BUDGET_COP,
+      'El presupuesto excede el límite permitido.',
     ),
 
   servings: z
