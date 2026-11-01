@@ -17,6 +17,7 @@ import {
 import { buildRecipeRecommendationPrompt } from '../../prompts/recommendRecipes.prompt';
 
 import { AppError } from '../../utils/errors';
+import { formatSafeErrorForLog } from '../../utils/safeLogger';
 
 export function sanitizeRecipeTimings(
   recipe: GeneratedRecipe,
@@ -194,7 +195,10 @@ export async function generateRecipeRecommendations(
     if (!validation.success) {
       console.error(
         '❌ Respuesta de recetas inválida:',
-        validation.error,
+        validation.error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          message: issue.message,
+        })),
       );
 
       throw new AppError(
@@ -277,7 +281,7 @@ export async function generateRecipeRecommendations(
 
     console.error(
       '❌ Error generando recetas con Gemini:',
-      error,
+      formatSafeErrorForLog(error),
     );
 
     throw new AppError(

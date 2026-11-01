@@ -23,6 +23,14 @@ export async function analyzeIngredients(
       );
     }
 
+    if (req.file.buffer.length === 0) {
+      throw new AppError(
+        'El archivo de imagen está vacío.',
+        400,
+        'INVALID_IMAGE_CONTENT',
+      );
+    }
+
     const result = await analyzeIngredientsFromImage({
       buffer: req.file.buffer,
       mimeType: req.file.mimetype,

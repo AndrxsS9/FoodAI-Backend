@@ -2,14 +2,40 @@ import { z } from 'zod';
 
 import { ingredientSchema } from './ingredient.schema';
 
+export const MAX_PANTRY_ITEMS = 100;
+export const MAX_INGREDIENT_NAME_LENGTH = 100;
+export const MAX_INGREDIENT_QUANTITY = 1_000_000;
+export const MAX_BUDGET_COP = 100_000_000;
+
+export const pantryIngredientInputSchema = ingredientSchema.extend({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'El nombre del ingrediente no puede estar vacío.')
+    .max(
+      MAX_INGREDIENT_NAME_LENGTH,
+      `El nombre del ingrediente no puede exceder ${MAX_INGREDIENT_NAME_LENGTH} caracteres.`,
+    ),
+  quantity: z
+    .number()
+    .positive()
+    .max(MAX_INGREDIENT_QUANTITY)
+    .nullable(),
+});
+
 export const recipeRecommendationRequestSchema = z.object({
   pantry: z
-    .array(ingredientSchema)
-    .min(1, 'Debes tener al menos un ingrediente en la despensa.'),
+    .array(pantryIngredientInputSchema)
+    .min(1, 'Debes tener al menos un ingrediente en la despensa.')
+    .max(
+      MAX_PANTRY_ITEMS,
+      `La despensa no puede superar ${MAX_PANTRY_ITEMS} ingredientes por solicitud.`,
+    ),
 
   budget: z
     .number()
-    .nonnegative('El presupuesto no puede ser negativo.'),
+    .nonnegative('El presupuesto no puede ser negativo.')
+    .max(MAX_BUDGET_COP, 'El presupuesto excede el límite permitido.'),
 
   servings: z
     .number()

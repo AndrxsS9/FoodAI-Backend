@@ -1,7 +1,12 @@
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../src/utils/errors';
+import {
+  setupTestSupabaseJwks,
+  signTestSupabaseJwt,
+  teardownTestSupabaseJwks,
+} from './helpers/testAuth';
 
 vi.mock(
   '../src/services/gemini/ingredient.service',
@@ -18,13 +23,28 @@ const mockedAnalyzeIngredients =
   vi.mocked(analyzeIngredientsFromImage);
 
 describe('POST /api/ingredients/analyze', () => {
+  let authHeader = '';
+
+  beforeAll(async () => {
+    await setupTestSupabaseJwks();
+    const token = await signTestSupabaseJwt({
+      sub: 'user-ingredients-routes-test',
+    });
+    authHeader = `Bearer ${token}`;
+  });
+
+  afterAll(async () => {
+    await teardownTestSupabaseJwks();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('debe retornar IMAGE_REQUIRED si no se envía una imagen', async () => {
     const response = await request(app)
-      .post('/api/ingredients/analyze');
+      .post('/api/ingredients/analyze')
+      .set('Authorization', authHeader);
 
     expect(response.status).toBe(400);
 
@@ -42,6 +62,7 @@ describe('POST /api/ingredients/analyze', () => {
   it('debe rechazar formatos de imagen no permitidos', async () => {
     const response = await request(app)
       .post('/api/ingredients/analyze')
+      .set('Authorization', authHeader)
       .attach(
         'image',
         Buffer.from('archivo-falso'),
@@ -85,6 +106,7 @@ describe('POST /api/ingredients/analyze', () => {
 
     const response = await request(app)
       .post('/api/ingredients/analyze')
+      .set('Authorization', authHeader)
       .attach(
         'image',
         Buffer.from('imagen-falsa'),
@@ -130,6 +152,7 @@ describe('POST /api/ingredients/analyze', () => {
 
     const response = await request(app)
       .post('/api/ingredients/analyze')
+      .set('Authorization', authHeader)
       .attach(
         'image',
         Buffer.from('imagen-falsa'),
@@ -162,6 +185,7 @@ describe('POST /api/ingredients/analyze', () => {
 
     const response = await request(app)
       .post('/api/ingredients/analyze')
+      .set('Authorization', authHeader)
       .attach(
         'image',
         Buffer.from('imagen-falsa'),
@@ -194,6 +218,7 @@ describe('POST /api/ingredients/analyze', () => {
 
     const response = await request(app)
       .post('/api/ingredients/analyze')
+      .set('Authorization', authHeader)
       .attach(
         'image',
         Buffer.from('imagen-falsa'),
@@ -226,6 +251,7 @@ describe('POST /api/ingredients/analyze', () => {
 
     const response = await request(app)
       .post('/api/ingredients/analyze')
+      .set('Authorization', authHeader)
       .attach(
         'image',
         Buffer.from('imagen-falsa'),

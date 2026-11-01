@@ -1,13 +1,32 @@
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import app from '../src/app';
 import { errorMiddleware } from '../src/middlewares/error.middleware';
 import { AppError } from '../src/utils/errors';
+import {
+  setupTestSupabaseJwks,
+  signTestSupabaseJwt,
+  teardownTestSupabaseJwks,
+} from './helpers/testAuth';
 
 describe('HTTP Infrastructure and Routes', () => {
+  let authHeader = '';
+
+  beforeAll(async () => {
+    await setupTestSupabaseJwks();
+    const token = await signTestSupabaseJwt({
+      sub: 'user-infrastructure-routes-test',
+    });
+    authHeader = `Bearer ${token}`;
+  });
+
+  afterAll(async () => {
+    await teardownTestSupabaseJwks();
+  });
+
   describe('GET /api/health', () => {
     it('1. retorna código 200 y success === true', async () => {
       const response = await request(app).get('/api/health');
@@ -61,6 +80,7 @@ describe('HTTP Infrastructure and Routes', () => {
     it('6. POST /api/recipes/recommend con payload inválido retorna 400 y VALIDATION_ERROR', async () => {
       const response = await request(app)
         .post('/api/recipes/recommend')
+        .set('Authorization', authHeader)
         .send({ pantry: [] }); // array vacío no cumple min(1)
 
       expect(response.status).toBe(400);
@@ -73,6 +93,7 @@ describe('HTTP Infrastructure and Routes', () => {
     it('7. POST /api/meal-plans/generate con payload inválido retorna 400 y VALIDATION_ERROR', async () => {
       const response = await request(app)
         .post('/api/meal-plans/generate')
+        .set('Authorization', authHeader)
         .send({}); // payload vacío sin campos obligatorios
 
       expect(response.status).toBe(400);
@@ -86,7 +107,8 @@ describe('HTTP Infrastructure and Routes', () => {
   describe('Carga de archivos en /api/ingredients/analyze', () => {
     it('8. solicitud sin imagen retorna 400 con IMAGE_REQUIRED', async () => {
       const response = await request(app)
-        .post('/api/ingredients/analyze');
+        .post('/api/ingredients/analyze')
+        .set('Authorization', authHeader);
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
@@ -99,6 +121,7 @@ describe('HTTP Infrastructure and Routes', () => {
 
       const response = await request(app)
         .post('/api/ingredients/analyze')
+        .set('Authorization', authHeader)
         .attach('image', invalidFileBuffer, {
           filename: 'documento.pdf',
           contentType: 'application/pdf',
