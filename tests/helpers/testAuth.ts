@@ -7,15 +7,19 @@ type JoseModule = typeof import('jose');
 type CryptoKeyPairResult = Awaited<ReturnType<JoseModule['generateKeyPair']>>;
 
 export const TEST_JWT_KID = 'test-supabase-es256-key-1';
+export const TEST_RS256_JWT_KID = 'test-supabase-rs256-key-1';
 export const DEFAULT_TEST_USER_ID = '11111111-2222-4333-8444-555555555555';
 
 let cachedJosePromise: Promise<JoseModule> | null = null;
 let trustedKeyPairPromise: Promise<{
   privateKey: CryptoKeyPairResult['privateKey'];
   publicJwk: JWK;
+  rs256PrivateKey: CryptoKeyPairResult['privateKey'];
+  rs256PublicJwk: JWK;
   jwks: JSONWebKeySet;
 }> | null = null;
 let untrustedKeyPairPromise: Promise<CryptoKeyPairResult> | null = null;
+let untrustedRs256KeyPairPromise: Promise<CryptoKeyPairResult> | null = null;
 
 function getJose(): Promise<JoseModule> {
   cachedJosePromise ??= import('jose');
@@ -26,8 +30,13 @@ async function getTrustedKeyMaterial() {
   if (!trustedKeyPairPromise) {
     trustedKeyPairPromise = (async () => {
       const jose = await getJose();
-      const { privateKey, publicKey } = await jose.generateKeyPair('ES256');
-      const exportedPublicJwk = await jose.exportJWK(publicKey);
+      const [es256Pair, rs256Pair] = await Promise.all([
+        jose.generateKeyPair('ES256'),
+        jose.generateKeyPair('RS256'),
+      ]);
+      const exportedPublicJwk = await jose.exportJWK(es256Pair.publicKey);
+      const exportedRs256PublicJwk = await jose.exportJWK(rs256Pair.publicKey);
+
       const publicJwk: JWK = {
         ...exportedPublicJwk,
         kid: TEST_JWT_KID,
@@ -35,11 +44,20 @@ async function getTrustedKeyMaterial() {
         use: 'sig',
       };
 
+      const rs256PublicJwk: JWK = {
+        ...exportedRs256PublicJwk,
+        kid: TEST_RS256_JWT_KID,
+        alg: 'RS256',
+        use: 'sig',
+      };
+
       return {
-        privateKey,
+        privateKey: es256Pair.privateKey,
         publicJwk,
+        rs256PrivateKey: rs256Pair.privateKey,
+        rs256PublicJwk,
         jwks: {
-          keys: [publicJwk],
+          keys: [publicJwk, rs256PublicJwk],
         },
       };
     })();
@@ -57,6 +75,17 @@ async function getUntrustedKeyPair() {
   }
 
   return untrustedKeyPairPromise;
+}
+
+async function getUntrustedRs256KeyPair() {
+  if (!untrustedRs256KeyPairPromise) {
+    untrustedRs256KeyPairPromise = (async () => {
+      const jose = await getJose();
+      return jose.generateKeyPair('RS256');
+    })();
+  }
+
+  return untrustedRs256KeyPairPromise;
 }
 
 export async function setupTestSupabaseJwks(): Promise<JSONWebKeySet> {
@@ -179,6 +208,38 @@ export async function signHs256SupabaseJwt(
     .setIssuedAt(nowSeconds - 10)
     .setExpirationTime(nowSeconds + (options.expiresInSeconds ?? 3600))
     .sign(encodedSecret);
+}
+
+export async function signTestRs256SupabaseJwt(
+  options: SignTestJwtOptions & { untrusted?: boolean } = {},
+): Promise<string> {
+  const jose = await getJose();
+  const privateKey = options.untrusted
+    ? (await getUntrustedRs256KeyPair()).privateKey
+    : (await getTrustedKeyMaterial()).rs256PrivateKey;
+
+  const baseSupabaseUrl = (options.supabaseUrl ?? env.SUPABASE_URL).replace(
+    /\/+$/,
+    '',
+  );
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  return new jose.SignJWT({
+    role: options.role ?? 'authenticated',
+    email: options.email ?? 'rs256.usuario@foodai.co',
+    session_id: 'test-rs256-session-001',
+  })
+    .setProtectedHeader({
+      alg: 'RS256',
+      typ: 'JWT',
+      kid: options.kid ?? TEST_RS256_JWT_KID,
+    })
+    .setSubject(options.sub ?? DEFAULT_TEST_USER_ID)
+    .setIssuer(options.iss ?? `${baseSupabaseUrl}/auth/v1`)
+    .setAudience(options.aud ?? env.SUPABASE_JWT_AUDIENCE)
+    .setIssuedAt(nowSeconds - 10)
+    .setExpirationTime(nowSeconds + (options.expiresInSeconds ?? 3600))
+    .sign(privateKey);
 }
 
 export function buildUnsignedAlgNoneJwt(

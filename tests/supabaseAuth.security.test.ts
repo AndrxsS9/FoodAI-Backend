@@ -34,6 +34,7 @@ import {
   DEFAULT_TEST_USER_ID,
   setupTestSupabaseJwks,
   signHs256SupabaseJwt,
+  signTestRs256SupabaseJwt,
   signTestSupabaseJwt,
   signUntrustedSupabaseJwt,
   teardownTestSupabaseJwks,
@@ -497,6 +498,145 @@ describe('Supabase JWT Authentication & Protected AI Endpoints', () => {
       expect(response.status).toBe(503);
       expect(response.headers['www-authenticate']).toBeUndefined();
       expect(response.body.error.code).toBe('AUTH_VERIFICATION_UNAVAILABLE');
+    });
+
+    it('verifica correctamente JWT asimétricos RS256 válidos vía JWKS y rechaza firmas RS256 no confiables', async () => {
+      mockedGenerateRecipes.mockResolvedValueOnce(sampleGeneratedThreeRecipes);
+
+      const validRs256Token = await signTestRs256SupabaseJwt({
+        sub: 'b4c9e153-8d2e-4e7f-8a2b-9900aabbccdd',
+      });
+
+      const okRes = await request(app)
+        .post('/api/recipes/recommend')
+        .set('Authorization', `Bearer ${validRs256Token}`)
+        .send(validRecipePayload);
+
+      expect(okRes.status).toBe(200);
+      expect(okRes.body.success).toBe(true);
+      expect(okRes.body.data.recipes).toHaveLength(3);
+
+      const forgedRs256Token = await signTestRs256SupabaseJwt({
+        untrusted: true,
+      });
+
+      const badRes = await request(app)
+        .post('/api/recipes/recommend')
+        .set('Authorization', `Bearer ${forgedRs256Token}`)
+        .send(validRecipePayload);
+
+      expect(badRes.status).toBe(401);
+      expect(badRes.headers['www-authenticate']).toBe('Bearer');
+      expect(badRes.body.error.code).toBe('INVALID_AUTH_TOKEN');
+    });
+
+    it('consulta el endpoint JWKS remoto y reutiliza la caché en memoria en verificaciones sucesivas', async () => {
+      const testJwks = await setupTestSupabaseJwks();
+      const remoteSupabaseUrl = 'https://jwks-cache-audit.supabase.co';
+
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockImplementation(async () => {
+          return new Response(JSON.stringify(testJwks), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        });
+
+      try {
+        const remoteVerifier = createSupabaseJwtVerifier({
+          supabaseUrl: remoteSupabaseUrl,
+          jwksCacheMaxAgeMs: 600_000,
+        });
+
+        const es256Token = await signTestSupabaseJwt({
+          sub: 'cached-user-es256',
+          supabaseUrl: remoteSupabaseUrl,
+        });
+        const rs256Token = await signTestRs256SupabaseJwt({
+          sub: 'cached-user-rs256',
+          supabaseUrl: remoteSupabaseUrl,
+        });
+
+        const user1 = await remoteVerifier.verifyAccessToken(es256Token);
+        const user2 = await remoteVerifier.verifyAccessToken(rs256Token);
+
+        expect(user1.id).toBe('cached-user-es256');
+        expect(user2.id).toBe('cached-user-rs256');
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        expect(String(fetchSpy.mock.calls[0]?.[0])).toBe(
+          `${remoteSupabaseUrl}/auth/v1/.well-known/jwks.json`,
+        );
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
+    it('traduce fallos reales del JWKS remoto (HTTP 503, JWKS malformado y error de red) a 503 AUTH_VERIFICATION_UNAVAILABLE con redacción segura', async () => {
+      const remoteSupabaseUrl = 'https://jwks-outage-audit.supabase.co';
+      const tokenForOutage = await signTestSupabaseJwt({
+        sub: 'outage-check-user',
+        supabaseUrl: remoteSupabaseUrl,
+      });
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+      try {
+        // Caso A: HTTP 503 desde Supabase JWKS
+        fetchSpy.mockResolvedValueOnce(
+          new Response('Service Unavailable', { status: 503 }),
+        );
+        const verifierHttp503 = createSupabaseJwtVerifier({
+          supabaseUrl: remoteSupabaseUrl,
+        });
+        await expect(
+          verifierHttp503.verifyAccessToken(tokenForOutage),
+        ).rejects.toMatchObject({
+          statusCode: 503,
+          code: 'AUTH_VERIFICATION_UNAVAILABLE',
+        });
+
+        // Caso B: HTTP 200 pero payload JSON sin estructura JWK Set válida (JWKSInvalid)
+        fetchSpy.mockResolvedValueOnce(
+          new Response(JSON.stringify({ error: 'invalid_upstream_jwks' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+        const verifierInvalidJwks = createSupabaseJwtVerifier({
+          supabaseUrl: remoteSupabaseUrl,
+        });
+        await expect(
+          verifierInvalidJwks.verifyAccessToken(tokenForOutage),
+        ).rejects.toMatchObject({
+          statusCode: 503,
+          code: 'AUTH_VERIFICATION_UNAVAILABLE',
+        });
+
+        // Caso C: Fallo de red con encabezados sensibles en el mensaje de error
+        fetchSpy.mockRejectedValueOnce(
+          new TypeError(
+            'fetch failed while headers included x-goog-api-key: leakedHeaderSecret999',
+          ),
+        );
+        const verifierNetworkErr = createSupabaseJwtVerifier({
+          supabaseUrl: remoteSupabaseUrl,
+        });
+        await expect(
+          verifierNetworkErr.verifyAccessToken(tokenForOutage),
+        ).rejects.toMatchObject({
+          statusCode: 503,
+          code: 'AUTH_VERIFICATION_UNAVAILABLE',
+        });
+
+        const loggedText = JSON.stringify(errorSpy.mock.calls);
+        expect(loggedText).not.toContain('leakedHeaderSecret999');
+        expect(loggedText).toContain('x-goog-api-key: [REDACTED]');
+      } finally {
+        fetchSpy.mockRestore();
+        errorSpy.mockRestore();
+      }
     });
   });
 });

@@ -38,6 +38,8 @@ export function createAiConcurrencyGuard(
       if (!released) {
         released = true;
         activeRequests = Math.max(0, activeRequests - 1);
+        res.removeListener('finish', release);
+        res.removeListener('close', release);
       }
     };
 

@@ -59,10 +59,15 @@ export function redactSensitiveText(
     REDACTED_SUPABASE_KEY,
   );
 
-  // 5. Parámetros sensibles en URLs o mensajes (key=, api_key=, access_token=, token=)
+  // 5. Parámetros sensibles en URLs, encabezados o mensajes (key=, x-goog-api-key:, access_token=, etc.)
   sanitized = sanitized.replace(
-    /\b(api[_-]?key|key|access_token|refresh_token|token|authorization)=([^\s&"']+)/gi,
+    /\b(x-goog-api-key|api[_-]?key|key|access_token|refresh_token|token|authorization)=([^\s&"']+)/gi,
     '$1=[REDACTED]',
+  );
+
+  sanitized = sanitized.replace(
+    /(["']?(?:x-goog-api-key|api[_-]?key|access_token|refresh_token)["']?\s*:\s*)(["']?)([^\s"',}\]]+)\2/gi,
+    '$1$2[REDACTED]$2',
   );
 
   // 6. Valores exactos de secretos configurados en tiempo de ejecución

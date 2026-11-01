@@ -1,5 +1,6 @@
 import app from './app';
 import { env } from './config/env';
+import { formatSafeErrorForLog } from './utils/safeLogger';
 
 export const SERVER_HOST = '0.0.0.0';
 const SHUTDOWN_TIMEOUT_MS = 15_000;
@@ -25,13 +26,13 @@ server.requestTimeout = 90_000;
 
 let isShuttingDown = false;
 
-function handleGracefulShutdown(signal: NodeJS.Signals) {
+function handleGracefulShutdown(reason: string, exitCode = 0) {
   if (isShuttingDown) {
     return;
   }
 
   isShuttingDown = true;
-  console.log(`\n🛑 Señal ${signal} recibida. Cerrando FoodAI Backend de forma segura...`);
+  console.log(`\n🛑 Señal/evento ${reason} recibido. Cerrando FoodAI Backend de forma segura...`);
 
   const forceExitTimer = setTimeout(() => {
     console.error('⚠️ Tiempo de cierre agotado. Forzando salida del proceso.');
@@ -42,14 +43,47 @@ function handleGracefulShutdown(signal: NodeJS.Signals) {
 
   server.close((error) => {
     if (error) {
-      console.error('❌ Error al cerrar el servidor HTTP:', error.message);
+      console.error(
+        '❌ Error al cerrar el servidor HTTP:',
+        formatSafeErrorForLog(error),
+      );
       process.exit(1);
     }
 
     console.log('✅ Servidor HTTP cerrado correctamente.');
-    process.exit(0);
+    process.exit(exitCode);
   });
 }
 
-process.on('SIGTERM', () => handleGracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
+server.on('error', (error) => {
+  console.error(
+    '❌ Error crítico en el servidor HTTP:',
+    formatSafeErrorForLog(error, {
+      includeStack: env.NODE_ENV !== 'production',
+    }),
+  );
+  process.exit(1);
+});
+
+process.on('SIGTERM', () => handleGracefulShutdown('SIGTERM', 0));
+process.on('SIGINT', () => handleGracefulShutdown('SIGINT', 0));
+
+process.on('unhandledRejection', (reason) => {
+  console.error(
+    '❌ Promesa rechazada no controlada:',
+    formatSafeErrorForLog(reason, {
+      includeStack: env.NODE_ENV !== 'production',
+    }),
+  );
+  handleGracefulShutdown('unhandledRejection', 1);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error(
+    '❌ Excepción no controlada:',
+    formatSafeErrorForLog(error, {
+      includeStack: env.NODE_ENV !== 'production',
+    }),
+  );
+  handleGracefulShutdown('uncaughtException', 1);
+});

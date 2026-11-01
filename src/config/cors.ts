@@ -69,6 +69,8 @@ export function createCorsOptions(config: FoodAiCorsConfig = {}): CorsOptions {
       'RateLimit-Limit',
       'RateLimit-Remaining',
       'RateLimit-Reset',
+      'RateLimit-Policy',
+      'Retry-After',
     ],
     credentials: false,
     maxAge: 600,

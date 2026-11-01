@@ -212,6 +212,7 @@ export function createSupabaseJwtVerifier(
 
       const isJwksUpstreamFailure =
         error instanceof jose.errors.JWKSTimeout ||
+        error instanceof jose.errors.JWKSInvalid ||
         (error instanceof jose.errors.JOSEError &&
           error.code === 'ERR_JOSE_GENERIC' &&
           error.message.includes('JSON Web Key Set HTTP response')) ||
