@@ -37,6 +37,14 @@ const pluralToSingularMap = new Map<string, string>([
   ['hojas de laurel', 'hoja de laurel'],
   ['clavos de olor', 'clavo de olor'],
   ['pimientos', 'pimiento'],
+  ['batatas', 'batata'],
+  ['piñas', 'piña'],
+  ['pinas', 'pina'],
+  ['apples', 'apple'],
+  ['pineapples', 'pineapple'],
+  ['potatoes', 'potato'],
+  ['sweet potatoes', 'sweet potato'],
+  ['chickens', 'chicken'],
 ]);
 
 const normalizedPluralToSingularMap = new Map<string, string>();

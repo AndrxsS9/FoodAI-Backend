@@ -3,6 +3,10 @@ import type {
 } from '../../schemas/recipe.schema';
 
 import { prepareIngredientName } from '../../utils/ingredientIdentity';
+import {
+  areDistinctFoodCollisions,
+  isCanonicalIngredient,
+} from '../../utils/ingredientAliases';
 
 /**
  * ============================================================================
@@ -974,11 +978,31 @@ export function findPriceRule(
   const candidates: Candidate[] = [];
 
   for (const rule of ingredientPriceCatalog) {
+    const ruleCanonicalPrepared = prepareIngredientName(rule.canonicalName);
+
+    // Si el ingrediente de entrada es una identidad canónica conocida
+    // y la regla representa otra identidad canónica conocida distinta,
+    // NO deben coincidir por coincidencia parcial
+    // (ej. "leche de almendras", "batata", "pina" no deben caer en "leche", "papa", "manzana").
+    if (
+      isCanonicalIngredient(preparedName) &&
+      isCanonicalIngredient(ruleCanonicalPrepared) &&
+      preparedName !== ruleCanonicalPrepared
+    ) {
+      continue;
+    }
+
     for (const alias of rule.aliases) {
       const aliasPrepared = prepareIngredientName(alias);
       const aliasTokens = tokenize(aliasPrepared);
 
       if (aliasTokens.length === 0) {
+        continue;
+      }
+
+      // Prevenir colisiones entre alimentos distintos reconocidos
+      // (ej. "almond milk" vs "milk", "sweet potato" vs "potato", "pineapple" vs "apple", "soy sauce" vs "tomato sauce")
+      if (areDistinctFoodCollisions(inputTokens, aliasTokens)) {
         continue;
       }
 
