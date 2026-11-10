@@ -1,4 +1,9 @@
-export const detectIngredientsPrompt = `
+import {
+  DEFAULT_LOCALE,
+  type SupportedLocale,
+} from '../schemas/locale.schema';
+
+export const detectIngredientsPromptEs = `
 Analiza exclusivamente los alimentos visibles en la imagen para construir el inventario de una despensa doméstica.
 
 REGLAS:
@@ -37,3 +42,55 @@ Un tazón con arroz blanco crudo sin peso determinable:
   "needsReview": true
 }
 `;
+
+export const detectIngredientsPromptEn = `
+Analyze exclusively the visible food items in the image to build a home pantry inventory.
+
+RULES:
+
+1. Identify only food items and ingredients that are clearly visible.
+2. Use common food names in English (e.g., tomato, egg, rice, onion, potato, avocado).
+3. Do not invent foods that do not appear in the image. Do not assume the presence of invisible ingredients.
+4. Do not confuse packaging or wrappers with the actual food. If packaging is opaque or its exact contents are uncertain, do not invent the food unless clearly identifiable.
+5. Estimate quantity only when sufficient visual evidence exists:
+   - If you can clearly count individual units, use the canonical unit "unidad" (e.g., 3 eggs -> quantity: 3, unit: "unidad", needsReview: false).
+   - If you can reasonably infer weight or volume from legible labels or recognizable standard packages, use "g", "kg", "ml", or "l".
+6. If quantity cannot be reliably determined (for example, grains in a container or bag without visible weight, bulk food):
+   - quantity MUST be null.
+   - unit MUST be "desconocida".
+   - needsReview MUST be true.
+7. If the food item is visible but there is any uncertainty in identification or quantity, mark needsReview: true.
+8. Allowed canonical units exclusively: "unidad", "g", "kg", "ml", "l", "desconocida". Never translate these unit identifiers.
+9. Do not include objects, plates, utensils, or empty packaging that are not food items.
+10. Do not generate recipes, describe the scene, or include explanatory text. Return exclusively the structured data.
+
+Examples:
+
+Three visible whole eggs:
+{
+  "name": "Egg",
+  "quantity": 3,
+  "unit": "unidad",
+  "needsReview": false
+}
+
+A bowl with uncooked white rice without determinable weight:
+{
+  "name": "Rice",
+  "quantity": null,
+  "unit": "desconocida",
+  "needsReview": true
+}
+`;
+
+export function buildDetectIngredientsPrompt(
+  locale: SupportedLocale = DEFAULT_LOCALE,
+): string {
+  if (locale === 'en') {
+    return detectIngredientsPromptEn;
+  }
+
+  return detectIngredientsPromptEs;
+}
+
+export const detectIngredientsPrompt = detectIngredientsPromptEs;
