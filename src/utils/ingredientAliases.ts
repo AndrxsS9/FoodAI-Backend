@@ -51,6 +51,9 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'cebolla larga',
       'cebolla de rama',
       'cebolla junca',
+      'green onion',
+      'scallion',
+      'spring onion',
     ],
   },
   {
@@ -69,6 +72,8 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'palta',
       'aguacate hass',
       'aguacate criollo',
+      'avocado',
+      'hass avocado',
     ],
   },
   {
@@ -79,6 +84,7 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'mazorca',
       'elote',
       'maiz tierno',
+      'corn',
     ],
   },
   {
@@ -88,6 +94,10 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'cebolla cabezona',
       'cebolla blanca',
       'cebolla roja',
+      'onion',
+      'white onion',
+      'red onion',
+      'yellow onion',
     ],
   },
   {
@@ -98,6 +108,10 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'tomate chonto',
       'tomate de alino',
       'jitomate',
+      'tomato',
+      'red tomato',
+      'roma tomato',
+      'plum tomato',
     ],
   },
   {
@@ -107,6 +121,9 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'platano maduro',
       'platano verde',
       'platano harton',
+      'plantain',
+      'ripe plantain',
+      'green plantain',
     ],
   },
   {
@@ -115,6 +132,7 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'auyama',
       'ahuyama',
       'calabaza',
+      'pumpkin',
     ],
   },
   {
@@ -126,6 +144,8 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'agua potable',
       'agua hervida',
       'agua corriente',
+      'water',
+      'tap water',
     ],
   },
   {
@@ -157,6 +177,8 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'carne molida',
       'lomo de res',
       'bistec',
+      'beef',
+      'ground beef',
     ],
   },
   {
@@ -167,6 +189,12 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'sal de cocina',
       'sal fina',
       'sal yodada',
+      'salt',
+      'sea salt',
+      'table salt',
+      'fine salt',
+      'iodized salt',
+      'kosher salt',
     ],
   },
   {
@@ -176,6 +204,10 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'aceite vegetal',
       'aceite de cocina',
       'aceite de girasol',
+      'oil',
+      'vegetable oil',
+      'cooking oil',
+      'sunflower oil',
     ],
   },
   {
@@ -183,6 +215,9 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
     aliases: [
       'harina',
       'harina de trigo',
+      'flour',
+      'wheat flour',
+      'all purpose flour',
     ],
   },
   {
@@ -193,6 +228,8 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'queso mozzarella',
       'queso costeno',
       'quesito',
+      'cheese',
+      'mozzarella cheese',
     ],
   },
   {
@@ -201,6 +238,8 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'arveja',
       'guisante',
       'chicharo',
+      'pea',
+      'green pea',
     ],
   },
   {
@@ -240,6 +279,7 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'limon',
       'limon tahiti',
       'limon mandarina',
+      'lime',
     ],
   },
   {
@@ -249,6 +289,11 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'pimiento',
       'pimiento rojo',
       'pimiento verde',
+      // "pepper" genérico es ambiguo (pimienta vs pimentón):
+      // solo se mapean formas con contexto suficiente.
+      'bell pepper',
+      'red bell pepper',
+      'green bell pepper',
     ],
   },
   {
@@ -272,6 +317,7 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
       'maracuya',
       'parchita',
       'fruta de la pasion',
+      'passion fruit',
     ],
   },
   {
@@ -287,6 +333,8 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
     aliases: [
       'remolacha',
       'betabel',
+      'beet',
+      'beetroot',
     ],
   },
   {
@@ -335,6 +383,140 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
     aliases: [
       'pure de tomate',
       'tomato puree',
+    ],
+  },
+  // Identidades bilingües para alimentos que ya existen en el catálogo
+  // de precios. Solo se agregan sinónimos en inglés inequívocos; las
+  // formas españolas existentes conservan su identidad actual.
+  // Se excluyen a propósito: "pepper" genérico, "onion powder",
+  // "garlic powder", "eggplant" y otros productos distintos.
+  {
+    canonical: 'huevo',
+    aliases: [
+      'huevo',
+      'egg',
+      'large egg',
+    ],
+  },
+  {
+    canonical: 'ajo',
+    aliases: [
+      'ajo',
+      'garlic',
+      'garlic clove',
+    ],
+  },
+  {
+    canonical: 'zanahoria',
+    aliases: [
+      'zanahoria',
+      'carrot',
+    ],
+  },
+  {
+    canonical: 'pimienta',
+    aliases: [
+      'pimienta',
+      'black pepper',
+      'ground black pepper',
+    ],
+  },
+  {
+    canonical: 'mantequilla',
+    aliases: [
+      'mantequilla',
+      'butter',
+    ],
+  },
+  {
+    canonical: 'azucar',
+    aliases: [
+      'azucar',
+      'sugar',
+    ],
+  },
+  {
+    canonical: 'cerdo',
+    aliases: [
+      'cerdo',
+      'pork',
+    ],
+  },
+  {
+    canonical: 'atun',
+    aliases: [
+      'atun',
+      'tuna',
+    ],
+  },
+  {
+    canonical: 'tocineta',
+    aliases: [
+      'tocineta',
+      'bacon',
+    ],
+  },
+  {
+    canonical: 'lechuga',
+    aliases: [
+      'lechuga',
+      'lettuce',
+    ],
+  },
+  {
+    canonical: 'espinaca',
+    aliases: [
+      'espinaca',
+      'spinach',
+    ],
+  },
+  {
+    canonical: 'pepino',
+    aliases: [
+      'pepino',
+      'cucumber',
+    ],
+  },
+  {
+    canonical: 'champinon',
+    aliases: [
+      'champinon',
+      'mushroom',
+    ],
+  },
+  {
+    canonical: 'lenteja',
+    aliases: [
+      'lenteja',
+      'lentil',
+    ],
+  },
+  {
+    canonical: 'garbanzo',
+    aliases: [
+      'garbanzo',
+      'chickpea',
+    ],
+  },
+  {
+    canonical: 'comino',
+    aliases: [
+      'comino',
+      'cumin',
+    ],
+  },
+  {
+    canonical: 'canela',
+    aliases: [
+      'canela',
+      'cinnamon',
+    ],
+  },
+  {
+    canonical: 'vinagre',
+    aliases: [
+      'vinagre',
+      'vinegar',
     ],
   },
 ];
