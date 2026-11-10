@@ -151,6 +151,7 @@ describe('Fase 28C-B1.1 — Contratos de Locale en la API', () => {
 
       expect(response.status).toBe(200);
       expect(mockedAnalyzeIngredients).toHaveBeenCalledTimes(1);
+      expect(mockedAnalyzeIngredients.mock.calls[0][0].locale).toBe('es');
     });
   });
 
@@ -183,6 +184,7 @@ describe('Fase 28C-B1.1 — Contratos de Locale en la API', () => {
 
       expect(response.status).toBe(200);
       expect(mockedAnalyzeIngredients).toHaveBeenCalledTimes(1);
+      expect(mockedAnalyzeIngredients.mock.calls[0][0].locale).toBe('es');
     });
   });
 
@@ -231,6 +233,7 @@ describe('Fase 28C-B1.1 — Contratos de Locale en la API', () => {
 
       expect(response.status).toBe(200);
       expect(mockedAnalyzeIngredients).toHaveBeenCalledTimes(1);
+      expect(mockedAnalyzeIngredients.mock.calls[0][0].locale).toBe('en');
     });
   });
 

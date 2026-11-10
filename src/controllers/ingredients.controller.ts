@@ -16,7 +16,7 @@ export async function analyzeIngredients(
   next: NextFunction,
 ) {
   try {
-    ingredientAnalysisQuerySchema.parse(req.query);
+    const { locale } = ingredientAnalysisQuerySchema.parse(req.query);
 
     if (!req.file) {
       throw new AppError(
@@ -37,6 +37,7 @@ export async function analyzeIngredients(
     const result = await analyzeIngredientsFromImage({
       buffer: req.file.buffer,
       mimeType: req.file.mimetype,
+      locale,
     });
 
     return sendSuccess(res, result);

@@ -4,26 +4,39 @@ import { GEMINI_INGREDIENT_TIMEOUT_MS } from './geminiTimeout';
 import { geminiClient } from './gemini.client';
 
 import {
+  DEFAULT_LOCALE,
+  type SupportedLocale,
+} from '../../schemas/locale.schema';
+import {
+  getIngredientAnalysisJsonSchema,
   ingredientAnalysisJsonSchema,
   ingredientAnalysisSchema,
   type IngredientAnalysis,
 } from '../../schemas/ingredient.schema';
 
-import { detectIngredientsPrompt } from '../../prompts/detectIngredients.prompt';
+import {
+  buildDetectIngredientsPrompt,
+  detectIngredientsPrompt,
+} from '../../prompts/detectIngredients.prompt';
 
 import { AppError } from '../../utils/errors';
 import { formatSafeErrorForLog } from '../../utils/safeLogger';
 
-interface AnalyzeImageInput {
+export interface AnalyzeImageInput {
   buffer: Buffer;
   mimeType: string;
+  locale?: SupportedLocale;
 }
 
-export async function analyzeIngredientsFromImage({
-  buffer,
-  mimeType,
-}: AnalyzeImageInput): Promise<IngredientAnalysis> {
+export async function analyzeIngredientsFromImage(
+  input: AnalyzeImageInput,
+  explicitLocale?: SupportedLocale,
+): Promise<IngredientAnalysis> {
+  const { buffer, mimeType } = input;
+  const locale = explicitLocale ?? input.locale ?? DEFAULT_LOCALE;
   const base64Image = buffer.toString('base64');
+  const promptText = buildDetectIngredientsPrompt(locale);
+  const jsonSchema = getIngredientAnalysisJsonSchema(locale);
 
   try {
     const interaction = await executeGeminiRequest(
@@ -39,7 +52,7 @@ export async function analyzeIngredientsFromImage({
             },
             {
               type: 'text',
-              text: detectIngredientsPrompt,
+              text: promptText,
             },
           ],
 
@@ -50,7 +63,7 @@ export async function analyzeIngredientsFromImage({
           response_format: {
             type: 'text',
             mime_type: 'application/json',
-            schema: ingredientAnalysisJsonSchema,
+            schema: jsonSchema,
           },
         }),
       {
