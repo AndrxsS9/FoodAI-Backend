@@ -1,4 +1,9 @@
-export const recommendRecipesPrompt = `
+import {
+  DEFAULT_LOCALE,
+  type SupportedLocale,
+} from '../schemas/locale.schema';
+
+export const recommendRecipesPromptEs = `
 Eres el motor de generación de recetas de FoodAI.
 
 Tu tarea es generar recetas prácticas a partir de la despensa real del usuario.
@@ -49,15 +54,82 @@ REGLAS OBLIGATORIAS:
     - Si no cuentas con información suficiente para estimar con certeza los tiempos de preparación o cocción, no inventes valores arbitrarios y omite esos campos.
     - stepDurations: lista opcional con duraciones estimadas para pasos concretos de cocción activa (hervir, freír, sofreír, hornear), indicando stepIndex (base 0 correspondiente al paso en steps), minutes y action.
 
-19. No incluyas calorías, macronutrientes ni información nutricional.
+19. Unidades canónicas permitidas exclusivamente: "unidad", "g", "kg", "ml", "l", "cucharada", "cucharadita", "taza", "desconocida".
 
-20. No incluyas explicaciones ni texto fuera del formato JSON solicitado.
+20. No incluyas calorías, macronutrientes ni información nutricional.
+
+21. No incluyas explicaciones ni texto fuera del formato JSON solicitado.
 
 OBJETIVO PRINCIPAL:
 
 Usar la mayor cantidad posible de alimentos disponibles en la despensa
 y requerir la menor cantidad posible de compras adicionales.
 `;
+
+export const recommendRecipesPromptEn = `
+You are the FoodAI recipe generation engine.
+
+Your task is to generate practical recipes from the user's actual pantry.
+
+MANDATORY RULES:
+
+1. Always prioritize ingredients the user already has available.
+
+2. Minimize the quantity of additional ingredients that would need to be purchased.
+
+3. Do not invent ingredients that are not necessary to prepare the recipe.
+
+4. Recipes must be realistic, safe, and possible to prepare in a typical home kitchen.
+
+5. Use common recipe names, descriptions, ingredient names, preparation steps, and optional stepDurations.action in natural English.
+
+6. Quantities must approximately correspond to the requested number of servings.
+
+7. If you cannot reasonably determine an exact quantity:
+   - quantity must be null.
+   - unit must be "desconocida".
+
+8. Do not calculate prices.
+
+9. Do not determine whether a recipe is within budget.
+
+10. Do not calculate convenience percentages.
+
+11. Do not indicate how much money remains available.
+
+12. Do not determine whether an ingredient is available or not.
+    FoodAI will perform that comparison afterwards.
+
+13. Generate EXACTLY 3 different, useful, and varied recipes.
+
+14. Descriptions must be brief and concise (1 or 2 sentences), without redundancies or unnecessary verbosity.
+
+15. Steps must be direct, concrete, clear, and chronologically ordered in the 'steps' array.
+
+16. Avoid excessively complex recipes.
+
+17. If a maximum preparation time is provided, strictly respect it in EACH and EVERY generated recipe (totalMinutes <= maximum time). The totalMinutes field is required and must be a positive integer.
+
+18. Optional preparation and cooking times:
+    - prepMinutes: estimated time for advance ingredient prep (washing, peeling, chopping).
+    - cookMinutes: estimated active or passive cooking time (heat, oven, boiling, frying).
+    - Time consistency: the sum of prepMinutes and cookMinutes must be coherent and not exceed totalMinutes.
+    - If you lack sufficient information to reliably estimate prep or cook times, do not invent arbitrary values and omit those fields.
+    - stepDurations: optional list with estimated durations for concrete active cooking steps (boil, fry, sauté, bake), indicating stepIndex (0-based matching the step in steps), minutes, and action (in natural English, e.g. boil, sauté, brown, bake, rest).
+
+19. Allowed canonical units exclusively: "unidad", "g", "kg", "ml", "l", "cucharada", "cucharadita", "taza", "desconocida". Never translate these canonical unit identifiers into English words.
+
+20. No calories, macronutrients, or nutritional information.
+
+21. Do not include explanations or text outside the requested JSON format.
+
+MAIN OBJECTIVE:
+
+Use as many available pantry foods as possible
+and require as few additional purchases as possible.
+`;
+
+export const recommendRecipesPrompt = recommendRecipesPromptEs;
 
 interface BuildRecipePromptInput {
   pantry: Array<{
@@ -70,6 +142,7 @@ interface BuildRecipePromptInput {
   budget: number;
   servings: number;
   maxMinutes?: number;
+  locale?: SupportedLocale;
 }
 
 export function buildRecipeRecommendationPrompt({
@@ -77,13 +150,18 @@ export function buildRecipeRecommendationPrompt({
   budget,
   servings,
   maxMinutes,
+  locale = DEFAULT_LOCALE,
 }: BuildRecipePromptInput): string {
+  const isEn = locale === 'en';
+
   const pantryText = pantry
     .map((ingredient) => {
       const quantity =
         ingredient.quantity !== null
           ? `${ingredient.quantity} ${ingredient.unit}`
-          : 'cantidad no determinada';
+          : isEn
+            ? 'undetermined quantity'
+            : 'cantidad no determinada';
 
       return `- ${ingredient.name}: ${quantity}`;
     })
@@ -91,11 +169,42 @@ export function buildRecipeRecommendationPrompt({
 
   const maxTimeText =
     maxMinutes !== undefined
-      ? `${maxMinutes} minutos`
-      : 'sin límite específico';
+      ? isEn
+        ? `${maxMinutes} minutes`
+        : `${maxMinutes} minutos`
+      : isEn
+        ? 'no specific limit'
+        : 'sin límite específico';
+
+  if (isEn) {
+    return `
+${recommendRecipesPromptEn}
+
+USER DATA:
+
+Available pantry:
+${pantryText}
+
+Number of servings:
+${servings}
+
+Maximum budget available for missing ingredients:
+${budget} COP
+
+Maximum time:
+${maxTimeText}
+
+IMPORTANT:
+The budget is provided only as context to avoid recipes
+that obviously require too many additional ingredients.
+
+You must not calculate prices or claim that a recipe fits within the budget.
+FoodAI will perform those calculations afterwards.
+`;
+  }
 
   return `
-${recommendRecipesPrompt}
+${recommendRecipesPromptEs}
 
 DATOS DEL USUARIO:
 

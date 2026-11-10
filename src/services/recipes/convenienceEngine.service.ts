@@ -1,8 +1,14 @@
+import {
+  DEFAULT_LOCALE,
+  type SupportedLocale,
+} from '../../schemas/locale.schema';
+
 interface ConvenienceInput {
   totalIngredients: number;
   availableIngredients: number;
   estimatedMissingCost: number;
   budget: number;
+  locale?: SupportedLocale;
 }
 
 interface ConvenienceResult {
@@ -52,27 +58,40 @@ function buildReason(
   pantryScore: number,
   estimatedMissingCost: number,
   withinBudget: boolean,
+  locale: SupportedLocale = DEFAULT_LOCALE,
 ): string {
+  const isEn = locale === 'en';
+
   if (
     pantryScore >= 0.8 &&
     estimatedMissingCost === 0
   ) {
-    return 'Aprovecha casi por completo los ingredientes disponibles y no requiere compras estimadas.';
+    return isEn
+      ? 'Uses almost all available ingredients and does not require estimated purchases.'
+      : 'Aprovecha casi por completo los ingredientes disponibles y no requiere compras estimadas.';
   }
 
   if (pantryScore >= 0.8 && withinBudget) {
-    return 'Aprovecha gran parte de tu despensa y requiere pocas compras adicionales.';
+    return isEn
+      ? 'Uses most of your pantry and requires few additional purchases.'
+      : 'Aprovecha gran parte de tu despensa y requiere pocas compras adicionales.';
   }
 
   if (pantryScore >= 0.5 && withinBudget) {
-    return 'Utiliza varios ingredientes disponibles y se mantiene dentro del presupuesto estimado.';
+    return isEn
+      ? 'Uses several available ingredients and stays within the estimated budget.'
+      : 'Utiliza varios ingredientes disponibles y se mantiene dentro del presupuesto estimado.';
   }
 
   if (withinBudget) {
-    return 'Puede prepararse dentro del presupuesto, aunque requiere varios ingredientes adicionales.';
+    return isEn
+      ? 'Can be prepared within budget, although it requires several additional ingredients.'
+      : 'Puede prepararse dentro del presupuesto, aunque requiere varios ingredientes adicionales.';
   }
 
-  return 'Requiere compras adicionales que superan el presupuesto estimado.';
+  return isEn
+    ? 'Requires additional purchases that exceed the estimated budget.'
+    : 'Requiere compras adicionales que superan el presupuesto estimado.';
 }
 
 export function calculateConvenience({
@@ -80,6 +99,7 @@ export function calculateConvenience({
   availableIngredients,
   estimatedMissingCost,
   budget,
+  locale = DEFAULT_LOCALE,
 }: ConvenienceInput): ConvenienceResult {
   const pantryScore =
     calculatePantryScore(
@@ -122,6 +142,7 @@ export function calculateConvenience({
     pantryScore,
     estimatedMissingCost,
     withinBudget,
+    locale,
   );
 
   return {

@@ -8,6 +8,7 @@ import { geminiClient } from './gemini.client';
 import {
   generatedRecipesJsonSchema,
   generatedRecipesSchema,
+  getGeneratedRecipesJsonSchema,
   type GeneratedRecipe,
   type GeneratedRecipes,
   type RecipeRecommendationRequest,
@@ -134,6 +135,7 @@ export async function generateRecipeRecommendations(
     budget: input.budget,
     servings: input.servings,
     maxMinutes: input.maxMinutes,
+    locale: input.locale,
   });
 
   try {
@@ -156,7 +158,7 @@ export async function generateRecipeRecommendations(
           response_format: {
             type: 'text',
             mime_type: 'application/json',
-            schema: generatedRecipesJsonSchema,
+            schema: getGeneratedRecipesJsonSchema(input.locale),
           },
         }),
       {
