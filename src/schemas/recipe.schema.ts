@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { ingredientSchema } from './ingredient.schema';
-import { localeSchema } from './locale.schema';
+import { DEFAULT_LOCALE, localeSchema, type SupportedLocale } from './locale.schema';
 
 export const MAX_PANTRY_ITEMS = 100;
 export const MAX_INGREDIENT_NAME_LENGTH = 100;
@@ -165,151 +165,172 @@ export type RecipeRecommendationResponse =
     typeof recipeRecommendationResponseSchema
   >;
 
-export const generatedRecipesJsonSchema = {
-  type: 'object',
+export function getGeneratedRecipesJsonSchema(
+  locale: SupportedLocale = DEFAULT_LOCALE,
+) {
+  const isEn = locale === 'en';
 
-  properties: {
-    recipes: {
-      type: 'array',
-      minItems: 1,
-      maxItems: 5,
+  return {
+    type: 'object',
 
-      items: {
-        type: 'object',
+    properties: {
+      recipes: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 5,
 
-        properties: {
-          name: {
-            type: 'string',
-            description:
-              'Nombre corto y claro de la receta en español.',
-          },
+        items: {
+          type: 'object',
 
-          description: {
-            type: 'string',
-            description:
-              'Descripción breve de la preparación.',
-          },
-
-          totalMinutes: {
-            type: 'number',
-            description:
-              'Tiempo total estimado de preparación en minutos.',
-          },
-
-          prepMinutes: {
-            type: 'number',
-            description:
-              'Tiempo estimado de preparación previa de ingredientes en minutos (opcional).',
-          },
-
-          cookMinutes: {
-            type: 'number',
-            description:
-              'Tiempo estimado de cocción activa o pasiva en minutos (opcional).',
-          },
-
-          stepDurations: {
-            type: 'array',
-            description:
-              'Estimación opcional de duración por paso para acciones como hervir, freír, sofreír, hornear.',
-            items: {
-              type: 'object',
-              properties: {
-                stepIndex: {
-                  type: 'number',
-                  description:
-                    'Índice base 0 del paso correspondiente en el arreglo steps.',
-                },
-                minutes: {
-                  type: 'number',
-                  description:
-                    'Duración estimada en minutos de este paso.',
-                },
-                action: {
-                  type: 'string',
-                  description:
-                    'Acción principal (ej. hervir, sofreír, dorar, hornear, reposar).',
-                },
-              },
-              required: ['stepIndex'],
-              additionalProperties: false,
-            },
-          },
-
-          ingredients: {
-            type: 'array',
-            minItems: 1,
-
-            items: {
-              type: 'object',
-
-              properties: {
-                name: {
-                  type: 'string',
-                  description:
-                    'Nombre común del ingrediente en español.',
-                },
-
-                quantity: {
-                  type: ['number', 'null'],
-                  description:
-                    'Cantidad necesaria. Null si no puede determinarse razonablemente.',
-                },
-
-                unit: {
-                  type: 'string',
-
-                  enum: [
-                    'unidad',
-                    'g',
-                    'kg',
-                    'ml',
-                    'l',
-                    'cucharada',
-                    'cucharadita',
-                    'taza',
-                    'desconocida',
-                  ],
-                },
-              },
-
-              required: [
-                'name',
-                'quantity',
-                'unit',
-              ],
-
-              additionalProperties: false,
-            },
-          },
-
-          steps: {
-            type: 'array',
-            minItems: 1,
-
-            items: {
+          properties: {
+            name: {
               type: 'string',
+              description: isEn
+                ? 'Short and clear name of the recipe in English.'
+                : 'Nombre corto y claro de la receta en español.',
             },
 
-            description:
-              'Pasos concretos y ordenados para preparar la receta.',
+            description: {
+              type: 'string',
+              description: isEn
+                ? 'Brief description of the preparation.'
+                : 'Descripción breve de la preparación.',
+            },
+
+            totalMinutes: {
+              type: 'number',
+              description: isEn
+                ? 'Total estimated preparation time in minutes.'
+                : 'Tiempo total estimado de preparación en minutos.',
+            },
+
+            prepMinutes: {
+              type: 'number',
+              description: isEn
+                ? 'Estimated preparation time for ingredients in minutes (optional).'
+                : 'Tiempo estimado de preparación previa de ingredientes en minutos (opcional).',
+            },
+
+            cookMinutes: {
+              type: 'number',
+              description: isEn
+                ? 'Estimated active or passive cooking time in minutes (optional).'
+                : 'Tiempo estimado de cocción activa o pasiva en minutos (opcional).',
+            },
+
+            stepDurations: {
+              type: 'array',
+              description: isEn
+                ? 'Optional duration estimate per step for actions such as boiling, frying, sautéing, baking.'
+                : 'Estimación opcional de duración por paso para acciones como hervir, freír, sofreír, hornear.',
+              items: {
+                type: 'object',
+                properties: {
+                  stepIndex: {
+                    type: 'number',
+                    description: isEn
+                      ? '0-based index of the corresponding step in the steps array.'
+                      : 'Índice base 0 del paso correspondiente en el arreglo steps.',
+                  },
+                  minutes: {
+                    type: 'number',
+                    description: isEn
+                      ? 'Estimated duration in minutes for this step.'
+                      : 'Duración estimada en minutos de este paso.',
+                  },
+                  action: {
+                    type: 'string',
+                    description: isEn
+                      ? 'Main action (e.g. boil, sauté, brown, bake, rest).'
+                      : 'Acción principal (ej. hervir, sofreír, dorar, hornear, reposar).',
+                  },
+                },
+                required: ['stepIndex'],
+                additionalProperties: false,
+              },
+            },
+
+            ingredients: {
+              type: 'array',
+              minItems: 1,
+
+              items: {
+                type: 'object',
+
+                properties: {
+                  name: {
+                    type: 'string',
+                    description: isEn
+                      ? 'Common name of the ingredient in English.'
+                      : 'Nombre común del ingrediente en español.',
+                  },
+
+                  quantity: {
+                    type: ['number', 'null'],
+                    description: isEn
+                      ? 'Required quantity. Null if it cannot be reasonably determined.'
+                      : 'Cantidad necesaria. Null si no puede determinarse razonablemente.',
+                  },
+
+                  unit: {
+                    type: 'string',
+
+                    enum: [
+                      'unidad',
+                      'g',
+                      'kg',
+                      'ml',
+                      'l',
+                      'cucharada',
+                      'cucharadita',
+                      'taza',
+                      'desconocida',
+                    ],
+                  },
+                },
+
+                required: [
+                  'name',
+                  'quantity',
+                  'unit',
+                ],
+
+                additionalProperties: false,
+              },
+            },
+
+            steps: {
+              type: 'array',
+              minItems: 1,
+
+              items: {
+                type: 'string',
+              },
+
+              description: isEn
+                ? 'Concrete, ordered steps to prepare the recipe.'
+                : 'Pasos concretos y ordenados para preparar la receta.',
+            },
           },
+
+          required: [
+            'name',
+            'description',
+            'totalMinutes',
+            'ingredients',
+            'steps',
+          ],
+
+          additionalProperties: false,
         },
-
-        required: [
-          'name',
-          'description',
-          'totalMinutes',
-          'ingredients',
-          'steps',
-        ],
-
-        additionalProperties: false,
       },
     },
-  },
 
-  required: ['recipes'],
+    required: ['recipes'],
 
-  additionalProperties: false,
-};
+    additionalProperties: false,
+  };
+}
+
+export const generatedRecipesJsonSchema =
+  getGeneratedRecipesJsonSchema(DEFAULT_LOCALE);

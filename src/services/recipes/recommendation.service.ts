@@ -69,6 +69,8 @@ export async function buildRecipeRecommendations(
         estimatedMissingCost,
 
         budget: input.budget,
+
+        locale: input.locale,
       });
 
       return {
