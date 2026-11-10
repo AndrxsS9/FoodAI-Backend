@@ -5,6 +5,7 @@ import {
 } from 'express';
 
 import { analyzeIngredientsFromImage } from '../services/gemini/ingredient.service';
+import { ingredientAnalysisQuerySchema } from '../schemas/ingredient.schema';
 
 import { AppError } from '../utils/errors';
 import { sendSuccess } from '../utils/apiResponse';
@@ -15,6 +16,8 @@ export async function analyzeIngredients(
   next: NextFunction,
 ) {
   try {
+    ingredientAnalysisQuerySchema.parse(req.query);
+
     if (!req.file) {
       throw new AppError(
         'Debes enviar una imagen.',

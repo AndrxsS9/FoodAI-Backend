@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { localeSchema } from './locale.schema';
+
 export const ingredientSchema = z.object({
   name: z.string().min(1),
 
@@ -24,10 +26,18 @@ export const ingredientAnalysisSchema = z.object({
   ingredients: z.array(ingredientSchema),
 });
 
+export const ingredientAnalysisQuerySchema = z.object({
+  locale: localeSchema,
+});
+
 export type Ingredient = z.infer<typeof ingredientSchema>;
 
 export type IngredientAnalysis = z.infer<
   typeof ingredientAnalysisSchema
+>;
+
+export type IngredientAnalysisQuery = z.infer<
+  typeof ingredientAnalysisQuerySchema
 >;
 
 export const ingredientAnalysisJsonSchema = {

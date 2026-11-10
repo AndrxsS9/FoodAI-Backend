@@ -262,6 +262,7 @@ export async function buildMealPlan(
         budget: input.budget,
         servings: input.servings,
         maxMinutes: input.maxMinutes,
+        locale: input.locale,
       });
   } catch (error) {
     if (

@@ -7,6 +7,10 @@ import type {
   Ingredient,
 } from '../../schemas/ingredient.schema';
 
+import {
+  areDistinctFoodCollisions,
+  isCanonicalIngredient,
+} from '../../utils/ingredientAliases';
 import { prepareIngredientName } from '../../utils/ingredientIdentity';
 import {
   compareIngredientQuantities,
@@ -46,7 +50,7 @@ function containsContiguousPhrase(
   });
 }
 
-function ingredientNamesMatch(
+export function ingredientNamesMatch(
   recipeIngredient: string,
   pantryIngredient: string,
 ): boolean {
@@ -64,8 +68,24 @@ function ingredientNamesMatch(
     return true;
   }
 
+  // Si ambos corresponden a identidades canónicas conocidas distintas,
+  // nunca deben coincidir por palabras compartidas
+  // (ej. "leche" != "leche de almendras", "papa" != "papa criolla").
+  if (
+    isCanonicalIngredient(recipeName) &&
+    isCanonicalIngredient(pantryName)
+  ) {
+    return false;
+  }
+
   const recipeTokens = tokenize(recipeName);
   const pantryTokens = tokenize(pantryName);
+
+  // Prevenir colisiones entre alimentos distintos donde uno comparte términos con el otro
+  // (ej. "milk" != "almond milk", "potato" != "sweet potato", "apple" != "pineapple", "soy sauce" != "tomato sauce")
+  if (areDistinctFoodCollisions(recipeTokens, pantryTokens)) {
+    return false;
+  }
 
   /*
    * Coincidencia parcial por secuencias contiguas de palabras completas:
@@ -90,7 +110,7 @@ function ingredientNamesMatch(
   );
 }
 
-function isRecipeIngredientAvailable(
+export function isRecipeIngredientAvailable(
   recipeIngredient: RecipeIngredient,
   pantry: Ingredient[],
 ): boolean {

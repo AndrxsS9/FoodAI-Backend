@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { localeSchema } from './locale.schema';
 import {
   MAX_BUDGET_COP,
   MAX_PANTRY_ITEMS,
@@ -41,6 +42,8 @@ export const mealPlanRequestSchema = z.object({
     .positive()
     .max(240)
     .optional(),
+
+  locale: localeSchema,
 });
 
 export const mealPlanDaySchema = z.object({

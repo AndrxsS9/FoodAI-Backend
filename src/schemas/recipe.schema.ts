@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { ingredientSchema } from './ingredient.schema';
+import { localeSchema } from './locale.schema';
 
 export const MAX_PANTRY_ITEMS = 100;
 export const MAX_INGREDIENT_NAME_LENGTH = 100;
@@ -49,6 +50,8 @@ export const recipeRecommendationRequestSchema = z.object({
     .positive()
     .max(240)
     .optional(),
+
+  locale: localeSchema,
 });
 
 export const recipeIngredientSchema = z.object({
