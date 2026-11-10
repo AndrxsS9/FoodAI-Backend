@@ -318,13 +318,65 @@ const ingredientAliasGroups: IngredientAliasGroup[] = [
     canonical: 'salsa de tomate',
     aliases: [
       'salsa de tomate',
-      'pasta de tomate',
-      'pure de tomate',
       'tomato sauce',
+    ],
+  },
+  // Pasta y puré de tomate son productos distintos de la salsa de tomate
+  // (y entre sí): mantienen identidad canónica propia.
+  {
+    canonical: 'pasta de tomate',
+    aliases: [
+      'pasta de tomate',
       'tomato paste',
     ],
   },
+  {
+    canonical: 'pure de tomate',
+    aliases: [
+      'pure de tomate',
+      'tomato puree',
+    ],
+  },
 ];
+
+function containsTokenPhrase(
+  haystack: string[],
+  needle: string[],
+): boolean {
+  if (needle.length === 0 || needle.length > haystack.length) {
+    return false;
+  }
+
+  for (let start = 0; start + needle.length <= haystack.length; start++) {
+    if (needle.every((token, offset) => haystack[start + offset] === token)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+type ProcessedTomatoKind = 'paste' | 'puree' | null;
+
+function getProcessedTomatoKind(
+  tokens: string[],
+): ProcessedTomatoKind {
+  if (
+    containsTokenPhrase(tokens, ['pasta', 'de', 'tomate']) ||
+    containsTokenPhrase(tokens, ['tomato', 'paste'])
+  ) {
+    return 'paste';
+  }
+
+  if (
+    containsTokenPhrase(tokens, ['pure', 'de', 'tomate']) ||
+    containsTokenPhrase(tokens, ['tomato', 'puree'])
+  ) {
+    return 'puree';
+  }
+
+  return null;
+}
 
 const aliasToCanonicalMap = new Map<string, string>();
 const canonicalNamesSet = new Set<string>();
@@ -426,6 +478,17 @@ export function areDistinctFoodCollisions(
   const isCebolla = (has: (t: string) => boolean) =>
     has('cebolla') || has('onion');
   if (oneHas(isLarga) && isCebolla(hasA) && isCebolla(hasB)) {
+    return true;
+  }
+
+  // 7. Pasta de tomate / puré de tomate vs cualquier otro alimento
+  //    (tomate fresco, salsa de tomate, ketchup, pasta alimenticia, puré genérico)
+  const processedTomatoA = getProcessedTomatoKind(tokensA);
+  const processedTomatoB = getProcessedTomatoKind(tokensB);
+  if (
+    (processedTomatoA !== null || processedTomatoB !== null) &&
+    processedTomatoA !== processedTomatoB
+  ) {
     return true;
   }
 
