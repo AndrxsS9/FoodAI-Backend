@@ -1,0 +1,80 @@
+import { z } from 'zod';
+
+import { localeSchema } from './locale.schema';
+import {
+  MAX_BUDGET_COP,
+  MAX_PANTRY_ITEMS,
+  pantryIngredientInputSchema,
+  recommendedRecipeSchema,
+} from './recipe.schema';
+
+export const mealPlanRequestSchema = z.object({
+  pantry: z
+    .array(pantryIngredientInputSchema)
+    .min(
+      1,
+      'Debes tener al menos un ingrediente en la despensa.',
+    )
+    .max(
+      MAX_PANTRY_ITEMS,
+      `La despensa no puede superar ${MAX_PANTRY_ITEMS} ingredientes por solicitud.`,
+    ),
+
+  budget: z
+    .number()
+    .nonnegative(
+      'El presupuesto no puede ser negativo.',
+    )
+    .max(
+      MAX_BUDGET_COP,
+      'El presupuesto excede el límite permitido.',
+    ),
+
+  servings: z
+    .number()
+    .int()
+    .min(1)
+    .max(12),
+
+  maxMinutes: z
+    .number()
+    .int()
+    .positive()
+    .max(240)
+    .optional(),
+
+  locale: localeSchema,
+});
+
+export const mealPlanDaySchema = z.object({
+  day: z
+    .number()
+    .int()
+    .min(1)
+    .max(3),
+
+  recipe: recommendedRecipeSchema,
+});
+
+export const mealPlanResponseSchema = z.object({
+  days: z
+    .array(mealPlanDaySchema)
+    .length(3),
+
+  totalEstimatedMissingCost: z
+    .number()
+    .nonnegative(),
+
+  budgetRemaining: z.number(),
+
+  withinBudget: z.boolean(),
+});
+
+export type MealPlanRequest =
+  z.infer<typeof mealPlanRequestSchema>;
+
+export type MealPlanDay =
+  z.infer<typeof mealPlanDaySchema>;
+
+export type MealPlanResponse =
+  z.infer<typeof mealPlanResponseSchema>;

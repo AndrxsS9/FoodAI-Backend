@@ -1,0 +1,193 @@
+import type {
+  GeneratedRecipe,
+  RecipeIngredient,
+} from '../../schemas/recipe.schema';
+
+import type {
+  Ingredient,
+} from '../../schemas/ingredient.schema';
+
+import {
+  areDistinctFoodCollisions,
+  isCanonicalIngredient,
+} from '../../utils/ingredientAliases';
+import { prepareIngredientName } from '../../utils/ingredientIdentity';
+import {
+  compareIngredientQuantities,
+  sumCompatibleIngredientQuantities,
+} from '../../utils/ingredientQuantity';
+
+function tokenize(name: string): string[] {
+  if (!name) {
+    return [];
+  }
+
+  return name
+    .split(' ')
+    .filter((token) => token.length > 0);
+}
+
+function containsContiguousPhrase(
+  haystack: string[],
+  needle: string[],
+): boolean {
+  if (
+    needle.length === 0 ||
+    needle.length > haystack.length
+  ) {
+    return false;
+  }
+
+  return haystack.some((_, startIndex) => {
+    if (startIndex + needle.length > haystack.length) {
+      return false;
+    }
+
+    return needle.every(
+      (needleToken, offset) =>
+        haystack[startIndex + offset] === needleToken,
+    );
+  });
+}
+
+export function ingredientNamesMatch(
+  recipeIngredient: string,
+  pantryIngredient: string,
+): boolean {
+  const recipeName =
+    prepareIngredientName(recipeIngredient);
+
+  const pantryName =
+    prepareIngredientName(pantryIngredient);
+
+  if (!recipeName || !pantryName) {
+    return false;
+  }
+
+  if (recipeName === pantryName) {
+    return true;
+  }
+
+  // Si ambos corresponden a identidades canónicas conocidas distintas,
+  // nunca deben coincidir por palabras compartidas
+  // (ej. "leche" != "leche de almendras", "papa" != "papa criolla").
+  if (
+    isCanonicalIngredient(recipeName) &&
+    isCanonicalIngredient(pantryName)
+  ) {
+    return false;
+  }
+
+  const recipeTokens = tokenize(recipeName);
+  const pantryTokens = tokenize(pantryName);
+
+  // Prevenir colisiones entre alimentos distintos donde uno comparte términos con el otro
+  // (ej. "milk" != "almond milk", "potato" != "sweet potato", "apple" != "pineapple", "soy sauce" != "tomato sauce")
+  if (areDistinctFoodCollisions(recipeTokens, pantryTokens)) {
+    return false;
+  }
+
+  /*
+   * Coincidencia parcial por secuencias contiguas de palabras completas:
+   * "tomate" ↔ "tomate rojo"
+   * "pechuga de pollo" ↔ "pollo"
+   * "carne de res" ↔ "carne de res magra"
+   *
+   * Evita falsos positivos como:
+   * "sal" ↔ "salsa"
+   * "pan" ↔ "panela"
+   * "ajo" ↔ "bajo"
+   */
+  return (
+    containsContiguousPhrase(
+      recipeTokens,
+      pantryTokens,
+    ) ||
+    containsContiguousPhrase(
+      pantryTokens,
+      recipeTokens,
+    )
+  );
+}
+
+export function isRecipeIngredientAvailable(
+  recipeIngredient: RecipeIngredient,
+  pantry: Ingredient[],
+): boolean {
+  const matchingPantryIngredients = pantry.filter(
+    (pantryIngredient) =>
+      ingredientNamesMatch(
+        recipeIngredient.name,
+        pantryIngredient.name,
+      ),
+  );
+
+  if (matchingPantryIngredients.length === 0) {
+    return false;
+  }
+
+  const individualComparisons = matchingPantryIngredients.map(
+    (pantryIngredient) =>
+      compareIngredientQuantities(
+        pantryIngredient.quantity,
+        pantryIngredient.unit,
+        recipeIngredient.quantity,
+        recipeIngredient.unit,
+      ),
+  );
+
+  if (individualComparisons.includes('sufficient')) {
+    return true;
+  }
+
+  if (individualComparisons.includes('unknown')) {
+    return true;
+  }
+
+  const aggregatedAvailable =
+    sumCompatibleIngredientQuantities(
+      matchingPantryIngredients,
+    );
+
+  if (!aggregatedAvailable) {
+    return false;
+  }
+
+  const comparisonWithTotal = compareIngredientQuantities(
+    aggregatedAvailable.quantity,
+    aggregatedAvailable.unit,
+    recipeIngredient.quantity,
+    recipeIngredient.unit,
+  );
+
+  return comparisonWithTotal === 'sufficient';
+}
+
+export interface PantryMatchResult {
+  availableIngredients: GeneratedRecipe['ingredients'];
+  missingIngredients: GeneratedRecipe['ingredients'];
+}
+
+export function matchRecipeWithPantry(
+  recipe: GeneratedRecipe,
+  pantry: Ingredient[],
+): PantryMatchResult {
+  const availableIngredients: GeneratedRecipe['ingredients'] =
+    [];
+
+  const missingIngredients: GeneratedRecipe['ingredients'] =
+    [];
+
+  for (const recipeIngredient of recipe.ingredients) {
+    if (isRecipeIngredientAvailable(recipeIngredient, pantry)) {
+      availableIngredients.push(recipeIngredient);
+    } else {
+      missingIngredients.push(recipeIngredient);
+    }
+  }
+
+  return {
+    availableIngredients,
+    missingIngredients,
+  };
+}
